@@ -226,7 +226,6 @@ class SingleThreadMergeClusterRunner implements Callable<Cluster> {
 
 }
 
-
 /**
  * Runs single instance of Clustal routine for cluster extension as external
  * process.
@@ -268,37 +267,43 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
         List<UniqueSequence> rejectedSequences = new ArrayList<>();
         ClustalRunner.multipleAlignment(extendedCluster);  //ensure cluster has MSA
         int maxAlnLength = Hammock.maxAlnLength;
-        if (!Hammock.extensionIncreaseLength){
+        if (!Hammock.extensionIncreaseLength) {
             maxAlnLength = FileIOManager.getAlnLength(Settings.getInstance().getMsaDirectory() + extendedCluster.getId() + ".aln");
         }
-        
+
         Cluster newCluster;
         newCluster = extendedCluster;
         for (int i = 0; i < insertedSequences.size(); i++) {
-            String fastaPath = Settings.getInstance().getFastaDirectory() + newCluster.getId() + "_new.fa";
-            FileIOManager.saveUniqueSequenceToFastaWithoutLabels(insertedSequences.get(i), fastaPath, newCluster.getId() + "_" + (extendedCluster.getUniqueSize() + i + 1));
-            List<String> parameters = new ArrayList<>();
-            parameters.add("--profile2");
-            parameters.add(fastaPath);
-            parameters.add("--profile1");
-            parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
-            parameters.add("-o");
-            parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
-            parameters.add("--is-profile");
-            parameters.add("--force");
-            List<String> clustalParameters = Settings.getInstance().getClustalParameters();
-            if (clustalParameters != null) {
-                parameters.addAll(clustalParameters);
-            }
-            ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ");
 
-            if (FileIOManager.checkAlnLength(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", maxAlnLength)
-                    && FileIOManager.checkLastInnerGaps(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Hammock.maxInnerGaps)
-                    && FileIOManager.checkMatchStatesAndIc(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", minMatchStates, minIc, Hammock.maxGapProportion)) {
-                FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
-                addedSequences.add(insertedSequences.get(i));
-            } else {
+            if (!Statistics.checkCorrelation(newCluster, insertedSequences.get(i), Hammock.minCorrelation)) { //check correlation first
                 rejectedSequences.add(insertedSequences.get(i));
+            } else {
+
+                String fastaPath = Settings.getInstance().getFastaDirectory() + newCluster.getId() + "_new.fa";
+                FileIOManager.saveUniqueSequenceToFastaWithoutLabels(insertedSequences.get(i), fastaPath, newCluster.getId() + "_" + (extendedCluster.getUniqueSize() + i + 1));
+                List<String> parameters = new ArrayList<>();
+                parameters.add("--profile2");
+                parameters.add(fastaPath);
+                parameters.add("--profile1");
+                parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
+                parameters.add("-o");
+                parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
+                parameters.add("--is-profile");
+                parameters.add("--force");
+                List<String> clustalParameters = Settings.getInstance().getClustalParameters();
+                if (clustalParameters != null) {
+                    parameters.addAll(clustalParameters);
+                }
+                ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ");
+
+                if (FileIOManager.checkAlnLength(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", maxAlnLength)
+                        && FileIOManager.checkLastInnerGaps(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Hammock.maxInnerGaps)
+                        && FileIOManager.checkMatchStatesAndIc(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", minMatchStates, minIc, Hammock.maxGapProportion)) {
+                    FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
+                    addedSequences.add(insertedSequences.get(i));
+                } else {
+                    rejectedSequences.add(insertedSequences.get(i));
+                }
             }
         }
         for (UniqueSequence sequence : addedSequences) {

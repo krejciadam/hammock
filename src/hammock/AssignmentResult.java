@@ -16,7 +16,7 @@ import java.util.List;
  *
  * @author Adam Krejci
  */
-class AssignmentResult {
+public class AssignmentResult {
 
     private final List<Cluster> clusters = new ArrayList<>();
     private final List<UniqueSequence> databaseSequences = new ArrayList<>();

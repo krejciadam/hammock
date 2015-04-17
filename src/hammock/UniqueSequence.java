@@ -170,10 +170,4 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
             return -(this.getSequenceString().compareTo(o.getSequenceString()));
         }
     }
-
-
-    
-    
-     
-    
 }

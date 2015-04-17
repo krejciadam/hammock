@@ -221,7 +221,7 @@ class AligningBestHitRunner implements Callable<AligningScorerResult> {
         AligningScorerResult bestResult = null;
         for (UniqueSequence seq : databaseList) {
             AligningScorerResult roundResult = scorer.scoreWithShift(comparedSequence, seq);
-            if (bestResult == null || roundResult.compareTo(bestResult) > 0) {
+            if (bestResult == null || (roundResult.compareTo(bestResult) > 0)) {
                 bestResult = roundResult;
             }
         }

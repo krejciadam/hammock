@@ -14,7 +14,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +36,11 @@ public class Hammock {
     public static String workingDirectory = null;
     public static int nThreads = 4;
     private static List<String> labels = null;
+
+    public static List<String> getLabels() {
+        return labels;
+    }
+    public static double minCorrelation = -1.0;
     private static String labelString = null;
     private static Boolean fullClustering = null;
     public static ExecutorService threadPool = null;
@@ -292,23 +296,16 @@ public class Hammock {
             sequences = filterSequencesForLabels(sequences, labels);
         }
 
+        if (labels == null) {
+            labels = getSortedLabels(sequences);
+        }
+        
         logger.logAndStderr(sequences.size() + " unique sequences after non-specified labels filtered out");
         logger.logAndStderr(new Cluster(sequences, -1).size() + " total sequences after non-specified labels fileterd out");
 
         if (sequences.isEmpty()) {
             throw new FileFormatException("Error. No sequences (with specified labels) to cluster.");
         }
-
-//        if (!useClustal) {
-//            if (!checkSameLength(sequences)) {
-//                logger.logAndStderr("All sequences don't have the same length. Clustal will be used for initial alignment.");
-//                useClustal = true;
-//            }
-//        }
-        if (labels == null) {
-            labels = getSortedLabels(sequences);
-        }
-
         if (greedyThreshold == null) {
             greedyThreshold = setGreedyThreshold(sequences);
             logger.logAndStderr("Greedy clustering threshold not set. Setting automatically based on mean sequence length to: " + greedyThreshold);
@@ -735,7 +732,6 @@ public class Hammock {
     /**
      * Checks if common arguments are sane and sets up file paths
      *
-     * @return
      */
     private static boolean checkCommonArgs() {
         if (inputFileName == null) {
@@ -787,7 +783,6 @@ public class Hammock {
     /**
      * Checks if command line arguments for greedy mode are sane
      *
-     * @return
      */
     private static boolean checkGreedyArgs() {
         if (!((inputType.equals("fasta")) || (inputType.equals("seq")) || (inputType.equals("tab")))) {
@@ -801,7 +796,6 @@ public class Hammock {
     /**
      * Checks if command line arguments for cluster mode are sane
      *
-     * @return
      */
     private static boolean checkClusteringArgs() {
         if (!checkEnvVariable()) {
@@ -893,9 +887,9 @@ public class Hammock {
     private static double[] setAssignThresholdSequence(Collection<Cluster> clusters) {
         double meanLength = getClusterMeanSequenceLength(clusters);
         double[] result;
-        if (relativeHmmScore){
+        if (relativeHmmScore) {
             result = new double[]{meanLength * 0.13, meanLength * 0.113, meanLength * 0.108};
-        } else{
+        } else {
             result = new double[]{meanLength * 0.95, meanLength * 0.75, meanLength * 0.55};
         }
         for (int i = 0; i < result.length; i++) {
@@ -915,9 +909,9 @@ public class Hammock {
         if (assignThresholdSequence.length == 3) {
             logger.logAndStderr("Overlap threshold not set. Setting automatically based on mean sequence length to: ");
             double meanLength = getClusterMeanSequenceLength(clusters);
-            if (relativeHHScore){
+            if (relativeHHScore) {
                 result = new double[]{meanLength * 0.09, meanLength * 0.075, 0.0};
-            } else{
+            } else {
                 result = new double[]{meanLength * 0.7, meanLength * 0.4, 0.0};
             }
             for (int i = 0; i < result.length; i++) {
@@ -945,9 +939,9 @@ public class Hammock {
         if (assignThresholdSequence.length == 3) {
             logger.logAndStderr("Merge threshold not set. Setting automatically based on mean sequence length to: ");
             double meanLength = getClusterMeanSequenceLength(clusters);
-            if (relativeHHScore){
+            if (relativeHHScore) {
                 result = new double[]{meanLength * 0.125, meanLength * 0.115, meanLength * 0.110};
-            } else{
+            } else {
                 result = new double[]{meanLength * 0.95, meanLength * 0.75, meanLength * 0.55};
             }
             for (int i = 0; i < result.length; i++) {
@@ -1076,28 +1070,9 @@ public class Hammock {
 
     private static boolean checkEnvVariable() {
         Map<String, String> env = System.getenv();
-        if (env.containsKey("HHLIB")) {
-            return true;
-        } else {
-            return false;
-        }
+        return env.containsKey("HHLIB");
     }
 
-    private static boolean checkSameLength(Collection<UniqueSequence> sequences) throws DataException {
-        Iterator<UniqueSequence> it = sequences.iterator();
-        Integer length = null;
-        if (it.hasNext()) {
-            length = it.next().getSequenceString().length();
-        } else {
-            throw new DataException("Error. Empty sequence collection.");
-        }
-        while (it.hasNext()) {
-            if (it.next().getSequenceString().length() != length) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     private static Set<Integer> getClusterIdsNotSatisfyingIc(Collection<Cluster> clusters) throws DataException, IOException {
         Set<Integer> result = new HashSet<>();
@@ -1142,7 +1117,6 @@ public class Hammock {
 /**
  * Compares clusters based on size. If sizes are equal, compares based on id.
  *
- * @author akrejci
  */
 class ClusterSizeIdComparator implements Comparator<Cluster> {
 
@@ -1154,5 +1128,33 @@ class ClusterSizeIdComparator implements Comparator<Cluster> {
             return o1.size() - o2.size();
         }
     }
+}
 
+/**
+ * Compares sequences according to sum of counts of all labels. In case 
+ * of equality, compares alphabetically.
+ * @author Adam Krejci
+ */
+class UniqueSequenceSizeAlphabeticComparator implements Comparator<UniqueSequence>{
+
+    @Override
+    public int compare(UniqueSequence o1, UniqueSequence o2) {
+        int result = new SizeComparator().compare(o1, o2);
+        if (result == 0){
+            result = new UniqueSequenceAlphabeticComparator().compare(o1, o2);
+        }
+        return result;
+    }  
+}
+
+/**
+ * Compares sequences alphabetically
+ * @author Adam Krejci
+ */
+class UniqueSequenceAlphabeticComparator implements Comparator<UniqueSequence>{
+
+    @Override
+    public int compare(UniqueSequence o1, UniqueSequence o2) {
+        return o1.getSequenceString().compareTo(o2.getSequenceString());
+    }   
 }

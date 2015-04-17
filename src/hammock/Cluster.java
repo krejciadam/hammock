@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -21,6 +23,7 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
     private final List<UniqueSequence> sequences;
     private final int id;
     private int size;
+    private final Map<String, Integer> labelsMap;
     private boolean hasMSA = false;
     private boolean hasHMM = false;
     private boolean hasHH = false;
@@ -29,8 +32,13 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         this.sequences = new ArrayList<>(sequences);
         this.id = id;
         int sizeSum = 0;
+        labelsMap = new HashMap<>();
+        for (String label : Hammock.getLabels()) {
+            labelsMap.put(label, 0);
+        }
         for (UniqueSequence seq : sequences) {
             sizeSum += seq.size();
+            updateLabelsMap(seq);
         }
         this.size = sizeSum;
     }
@@ -50,10 +58,29 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         }
         sequences.add(sequence);
         this.size += sequence.size();
+        updateLabelsMap(sequence);
+
         this.hasMSA = false;
         this.hasHMM = false;
         this.hasHH = false;
+    }
 
+    private void updateLabelsMap(UniqueSequence seq) {
+        for (Map.Entry<String, Integer> entry : seq.getLabelsMap().entrySet()) {
+            int count = labelsMap.get(entry.getKey());
+            count += entry.getValue();
+            labelsMap.put(entry.getKey(), count);
+        }
+    }
+
+    public int[] getLabelCountVector() {
+        int[] vector = new int[Hammock.getLabels().size()];
+        int i = 0;
+        for (String label : Hammock.getLabels()) {
+            vector[i] = labelsMap.get(label);
+            i++;
+        }
+        return (vector);
     }
 
     /**
