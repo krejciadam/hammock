@@ -50,9 +50,9 @@ public class FileIOManager {
             int lineCounter = 0;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith("\\s")) {
-                    if (!(line.replaceAll("\\s+", "").equals(new String(UniqueSequence.getAminoAcids())))) {
+                    if (!(line.replaceAll("\\s+", "").equals(new String(UniqueSequence.getAminoAcidsAndSpecials())))) {
                         throw new FileFormatException("Error in scoring matrix file: " + matrixFilePath + ". Scoring"
-                                + "matrix should have exactly this order of rows/columns: " + new String(UniqueSequence.getAminoAcids()));
+                                + "matrix should have exactly this order of rows/columns: " + new String(UniqueSequence.getAminoAcidsAndSpecials()));
                     }
                 }
                 if (!(line.startsWith("#") || line.startsWith(" ") || line.startsWith("\t"))) { //skip comments and AA header line
@@ -77,6 +77,36 @@ public class FileIOManager {
                     + "should always have 24 rows (plus 1 column describing AAs).");
         }
         return scoringMatrix;
+    }
+
+    public static Map<Character, Map<Character, Double>> loadFrequencyMatrix(String path) throws IOException {
+        Map<Character, Map<Character, Double>> result = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
+            String line;
+            List<Character> aaList = new ArrayList<>();
+            int lineIndex = 0;
+            while ((line = reader.readLine()) != null) {
+                if (line.startsWith("#")) {
+                    continue;
+                }
+                if (line.matches("^[A-Z]+.*")) { //start line
+                    for (String s : line.split("\t")) {
+                        aaList.add(s.charAt(0));
+                    }
+                    continue;
+                }
+                String[] numberSplit = line.split("\t");
+                Map<Character, Double> aaMap = new HashMap<>();
+                for (int i = 0; i < numberSplit.length; i++) {
+                    aaMap.put(aaList.get(i), Double.parseDouble(numberSplit[i]));
+                }
+                result.put(aaList.get(lineIndex), aaMap);
+                lineIndex++;
+            }
+        } catch (IOException e) {
+            throw new IOException(e);
+        }
+        return (result);
     }
 
     /**
@@ -301,6 +331,7 @@ public class FileIOManager {
             }
             result.add(cl);
         } catch (NumberFormatException | NullPointerException e) {
+            e.printStackTrace();
             throw new FileFormatException("Error in cluster file: "
                     + fileName + " - wrong format. Original message: " + e.getMessage());
         }
@@ -348,7 +379,7 @@ public class FileIOManager {
                 List<String> msa = null;
                 Map<String, String> msaMap = null;
                 if (cl.hasMSA()) {
-                    msa = FileIOManager.getAligmentLines(cl);
+                    msa = FileIOManager.getAlignmentLines(cl);
                     msaMap = new HashMap<>();
                     for (String msaLine : msa) {
                         msaMap.put(msaLine.replace("-", ""), msaLine);
@@ -432,6 +463,7 @@ public class FileIOManager {
                     current = 0;
                 }
                 current += entry.getValue();
+//                current += 1;
                 res.put(entry.getKey(), current);
             }
         }
@@ -489,17 +521,9 @@ public class FileIOManager {
         }
     }
 
-    /**
-     * Loads temporal MSA file for a cluster and returns onlu lines containing
-     * alignment in form of a (multiline) string
-     *
-     * @param cl
-     * @return
-     * @throws IOException
-     */
-    private static List<String> getAligmentLines(Cluster cl) throws IOException {
+    public static List<String> getAlignmentLines(String path) throws IOException {
         List<String> result = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(new File(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln")))) {
+        try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = reader.readLine();               //only even lines
@@ -509,6 +533,18 @@ public class FileIOManager {
             throw new IOException(e);
         }
         return result;
+    }
+
+    /**
+     * Loads temporal MSA file for a cluster and returns onlu lines containing
+     * alignment in form of a (multiline) string
+     *
+     * @param cl
+     * @return
+     * @throws IOException
+     */
+    private static List<String> getAlignmentLines(Cluster cl) throws IOException {
+        return FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln");
     }
 
     /**
@@ -556,23 +592,23 @@ public class FileIOManager {
      * @throws IOException
      */
     public static String getFirstAlnSeq(Cluster cl) throws DataException, IOException {
-        if (!cl.hasMSA()){
+        if (!cl.hasMSA()) {
             throw new DataException("Error, Can't return alignment line for a cluster without alignment.");
         }
         return getNthLine(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", 1);
     }
-    
-    public static String getFirstA2mSeq(Cluster cl) throws DataException, IOException{
-        if (!cl.hasMSA()){
+
+    public static String getFirstA2mSeq(Cluster cl) throws DataException, IOException {
+        if (!cl.hasMSA()) {
             throw new DataException("Error, Can't return alignment line for a cluster without alignment.");
         }
         return getNthLine(Settings.getInstance().getMsaDirectory() + cl.getId() + ".a2m", 1);
     }
-    
-    private static String getNthLine(String file, int skip) throws IOException{
+
+    private static String getNthLine(String file, int skip) throws IOException {
         String res = null;
         try (BufferedReader reader = new BufferedReader(new FileReader(file))) {
-            for (int i = 0; i < skip; i++){
+            for (int i = 0; i < skip; i++) {
                 reader.readLine();
             }
             res = reader.readLine();
@@ -581,7 +617,7 @@ public class FileIOManager {
         }
         return res;
     }
-    
+
     /**
      * Merges MSA files for two clusters, adds any gaps specified
      *
@@ -812,6 +848,20 @@ public class FileIOManager {
             }
         }
     }
+    
+    /**
+     * Returns absolute paths to all files in input folder
+     * @param folderName path to the folder of interest
+     * @return 
+     */
+    public static List<String> listFolderContents(String folderName){
+        File[] contents = new File(folderName).listFiles();
+        List<String> res = new ArrayList<>();
+        for (File f : contents){
+            res.add(f.getAbsolutePath());
+        }
+        return(res);
+    }
 
     /**
      * Loads a file and returns its contents as string
@@ -916,15 +966,15 @@ public class FileIOManager {
      * Checks whether msa in "path" has enough match states satisfying maximal
      * gap proportion and minimal information content thresholds.
      *
-     * @param path
+     * @param alignmentLines clusters MSA
      * @param minMatchStates
      * @param minIc
      * @param maxGapProportion
      * @return
      * @throws IOException
      */
-    public static boolean checkMatchStatesAndIc(String path, int minMatchStates, double minIc, double maxGapProportion) throws IOException {
-        List<Boolean> matchStates = defineMatchStates(path, maxGapProportion, minIc);
+    public static boolean checkMatchStatesAndIc(List<String> alignmentLines, int minMatchStates, double minIc, double maxGapProportion) throws IOException {
+        List<Boolean> matchStates = defineMatchStates(alignmentLines, maxGapProportion, minIc);
         int count = 0;
         for (boolean position : matchStates) {
             if (position) {
@@ -941,44 +991,19 @@ public class FileIOManager {
      * Positions not having enough non-gap characters get information content of
      * -1.
      *
-     * @param path
+     * @param alignmentLines clusters MSA
      * @param maxGapProportion
      * @return
      * @throws IOException
      */
-    public static List<Double> getInformationContents(String path, Double maxGapProportion) throws IOException {
-        List<Map<Character, Integer>> positionLetterCounts = new ArrayList<>();
+    public static List<Double> getInformationContents(List<String> alignmentLines, Double maxGapProportion) throws IOException {
+        List<Map<Character, Integer>> positionLetterCounts = getPositionLetterCounts(alignmentLines);
         List<Double> result = new ArrayList<>();
         int seqCount = 0;
-        try (BufferedReader reader = new BufferedReader(new FileReader(path))) {
-            String line;
-            reader.readLine();
-            line = reader.readLine();
-            seqCount++;
-            int lineLength = line.trim().length();
-            for (char aa : line.trim().toCharArray()) {
-                Map<Character, Integer> countMap = new HashMap<>();
-                countMap.put(aa, 1);
-                positionLetterCounts.add(countMap);
-            }
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith(">")) {
-                    seqCount++;
-                    line = reader.readLine();
-                    char[] aas = line.trim().toCharArray();
-                    for (int i = 0; i < lineLength; i++) {
-                        Integer count = positionLetterCounts.get(i).get(aas[i]);
-                        if (count == null) {
-                            count = 0;
-                        }
-                        count++;
-                        positionLetterCounts.get(i).put(aas[i], count);
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new IOException(e);
+        for (Integer count : positionLetterCounts.get(0).values()) {
+            seqCount += count;
         }
+
         for (Map<Character, Integer> positionCount : positionLetterCounts) {
             if ((positionCount.get('-') == null) || (((positionCount.get('-') + 0.0) / seqCount) <= maxGapProportion)) {
                 result.add(getInformationContent(positionCount));
@@ -989,8 +1014,30 @@ public class FileIOManager {
         return result;
     }
 
-    private static List<Boolean> defineMatchStates(String path, double maxGapProportion, double minIc) throws IOException {
-        List<Double> informationContents = getInformationContents(path, maxGapProportion);
+    public static List<Map<Character, Integer>> getPositionLetterCounts(List<String> alignmentLines) throws IOException {
+        List<Map<Character, Integer>> positionLetterCounts = new ArrayList<>();
+        int lineLength = alignmentLines.get(0).trim().length();
+        for (char aa : alignmentLines.get(0).trim().toCharArray()) {
+            Map<Character, Integer> countMap = new HashMap<>();
+            countMap.put(aa, 1);
+            positionLetterCounts.add(countMap);
+        }
+        for (String line : alignmentLines.subList(1, alignmentLines.size())) {
+            char[] aas = line.trim().toCharArray();
+            for (int i = 0; i < lineLength; i++) {
+                Integer count = positionLetterCounts.get(i).get(aas[i]);
+                if (count == null) {
+                    count = 0;
+                }
+                count++;
+                positionLetterCounts.get(i).put(aas[i], count);
+            }
+        }
+        return (positionLetterCounts);
+    }
+
+    public static List<Boolean> defineMatchStates(List<String> alignmentLines, double maxGapProportion, double minIc) throws IOException {
+        List<Double> informationContents = getInformationContents(alignmentLines, maxGapProportion);
         List<Boolean> result = new ArrayList<>();
         for (Double ic : informationContents) {
             if (ic >= minIc) {
@@ -1015,7 +1062,7 @@ public class FileIOManager {
      * @throws DataException
      */
     public static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc) throws IOException, DataException {
-        List<Boolean> matchStates = defineMatchStates(inFile, maxGapProportion, minIc);
+        List<Boolean> matchStates = defineMatchStates(getAlignmentLines(inFile), maxGapProportion, minIc);
         try (BufferedReader reader = new BufferedReader(new FileReader(inFile)); BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -1106,28 +1153,17 @@ public class FileIOManager {
     /**
      * Checks whether alignment in inFile is longer or equal to maxLength
      *
-     * @param inFile
+     * @param alignmentLines clusters MSA
      * @param maxLength
      * @return
      * @throws IOException
      */
-    public static boolean checkAlnLength(String inFile, int maxLength) throws IOException {
-        return (FileIOManager.getAlnLength(inFile) <= maxLength);
+    public static boolean checkAlnLength(List<String> alignmentLines, int maxLength) throws IOException {
+        return (alignmentLines.get(0).length() <= maxLength);
     }
-    
-    public static boolean checkBothInnerGaps(String inFile, int maxGaps) throws IOException{
-        try (BufferedReader reader = new BufferedReader(new FileReader(inFile))) {
-            String lastLine = null;
-            reader.readLine();  //skip header
-            String firstLine = reader.readLine();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lastLine = line;
-            }
-            return((countInnerGaps(firstLine) <= maxGaps) && (countInnerGaps(lastLine) <= maxGaps));
-        } catch(IOException e){
-            throw new IOException(e);
-        }
+
+    public static boolean checkBothInnerGaps(List<String> alignmentLines, int maxGaps){
+        return((countInnerGaps(alignmentLines.get(0)) <= maxGaps) && (countInnerGaps(alignmentLines.get(alignmentLines.size() - 1)) <= maxGaps));
     }
 
     public static boolean checkLastInnerGaps(String inFile, int maxGaps) throws IOException {
@@ -1137,7 +1173,7 @@ public class FileIOManager {
             while ((line = reader.readLine()) != null) {
                 lastLine = line;
             }
-            return(countInnerGaps(lastLine) <= maxGaps);
+            return (countInnerGaps(lastLine) <= maxGaps);
 
         } catch (IOException e) {
             throw new IOException(e);

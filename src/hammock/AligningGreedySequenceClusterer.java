@@ -4,8 +4,6 @@
 package hammock;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,23 +33,19 @@ public class AligningGreedySequenceClusterer implements SequenceClusterer {
     /**
      * Performs greedy sequence clustering. 
      *
-     * This method works in O(n^2) and is deterministic, though determinism is
-     * achieved only by (inner) ordering of input sequences by size and
-     * alphabet.
+     * This method works in O(n^2) and is deterministic for defined input order of the sequences in sortedList
      *
-     * @param sequences Sequences to be sorted 
+     * @param sortedList Sequences to be sorted 
      * @param scorer scorer to be used
      * @return 
      * @throws InterruptedException
      * @throws ExecutionException
      */
     
+    
     @Override
-    public List<Cluster> cluster(Collection<UniqueSequence> sequences, ShiftedScorer scorer) throws InterruptedException, ExecutionException {
-
+    public List<Cluster> cluster(List<UniqueSequence> sortedList, ShiftedScorer scorer) throws InterruptedException, ExecutionException {
         int nThreads;
-        List<UniqueSequence> sortedList = new ArrayList<>(sequences);
-        Collections.sort(sortedList, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator()));
         CompletionService<AligningScorerResult> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
 
         Map<UniqueSequence, List<UniqueSequence>> representativeMap = new HashMap<>(); //add first representative

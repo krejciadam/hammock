@@ -381,10 +381,11 @@ public class IterativeHmmClusterer {
                 hitSet.remove(firstPair); //remove the best scoring pair
                 Cluster tempCluster = HHsuiteRunner.mergeClusters(firstPair, initialClusters.hashCode()); //temp cluster id = hash code. Needed for this thread to have unique temp cluster id
                 HHsuiteRunner.builHH(tempCluster);
+                List<String> tempClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + tempCluster.getId() + ".aln");
                 if (Statistics.checkCorrelation(firstPair.getSearchedCluster(), firstPair.getFoundCluster(), Hammock.minCorrelation)
-                        && (FileIOManager.checkMatchStatesAndIc(Settings.getInstance().getMsaDirectory() + tempCluster.getId() + ".aln", minMatchStates, minIc, Hammock.maxGapProportion))
-                        && (FileIOManager.checkBothInnerGaps(Settings.getInstance().getMsaDirectory() + tempCluster.getId() + ".aln", Hammock.maxInnerGaps))
-                        && (FileIOManager.checkAlnLength(Settings.getInstance().getMsaDirectory() + tempCluster.getId() + ".aln", maxAlnLength))) { //satisfies conditions
+                        && (FileIOManager.checkMatchStatesAndIc(tempClusterLines, minMatchStates, minIc, Hammock.maxGapProportion))
+                        && (FileIOManager.checkBothInnerGaps(tempClusterLines, Hammock.maxInnerGaps))
+                        && (FileIOManager.checkAlnLength(tempClusterLines, maxAlnLength))) { //satisfies conditions
                     clusterList.remove(firstPair.getBiggerCluster());
                     clusterList.remove(firstPair.getSmallerCluster());
                     Set<HHalignHit> newHitSet = new HashSet<>();

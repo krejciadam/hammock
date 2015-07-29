@@ -295,10 +295,10 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
                     parameters.addAll(clustalParameters);
                 }
                 ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ");
-
-                if (FileIOManager.checkAlnLength(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", maxAlnLength)
+                List<String> newClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
+                if (FileIOManager.checkAlnLength(newClusterLines, maxAlnLength)
                         && FileIOManager.checkLastInnerGaps(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Hammock.maxInnerGaps)
-                        && FileIOManager.checkMatchStatesAndIc(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", minMatchStates, minIc, Hammock.maxGapProportion)) {
+                        && FileIOManager.checkMatchStatesAndIc(newClusterLines, minMatchStates, minIc, Hammock.maxGapProportion)) {
                     FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
                     addedSequences.add(insertedSequences.get(i));
                 } else {

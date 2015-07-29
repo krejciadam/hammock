@@ -15,6 +15,6 @@ import java.util.concurrent.ExecutionException;
  */
 public interface SequenceClusterer {
     
-    public List<Cluster> cluster(Collection<UniqueSequence> sequences, ShiftedScorer scorer) throws InterruptedException, ExecutionException;
+    public List<Cluster> cluster(List<UniqueSequence> sequences, ShiftedScorer scorer) throws InterruptedException, ExecutionException;
     
 }

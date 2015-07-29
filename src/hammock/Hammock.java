@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
@@ -45,6 +46,7 @@ public class Hammock {
     private static Boolean fullClustering = null;
     public static ExecutorService threadPool = null;
     public static boolean inGalaxy = false;
+    public static Random random = null;
 
     //common - preset
     private static String initialAlignedCl;
@@ -58,6 +60,8 @@ public class Hammock {
     private static String inputStatistics;
     private static String finalAlnFolder;
     public static Logger logger;
+    public static int seed = 42;
+    public static final String countMatrixFile =  parentDir + separatorChar + "settings" + separatorChar + "misc" + separatorChar + "blosum62.freq_rownorm";
 
     //greedy
     private static String inputType = "fasta";
@@ -65,7 +69,8 @@ public class Hammock {
     private static Integer greedyThreshold = null;
     private static int shiftPenalty = 0;
     private static int maxShift = 3;
-    private static int[] ignore = new int[]{1};
+    private static int[] ignore = null;
+    private static String order = "size";
 
     public static Map<Integer, UniqueSequence> pivotMap = null;                 //this should be solved another way, without global variables
     public static Map<Integer, List<AligningScorerResult>> foundSeqsMap = null; //this should be solved another way, without global variables
@@ -93,7 +98,8 @@ public class Hammock {
     private static String galaxyFinalClustersCsv;
     private static String galaxyFinalSequenceCsv;
 
-    public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
+    public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception { 
+             
         try {
             parseArgs(args);
         } catch (FileFormatException e) {
@@ -151,11 +157,11 @@ public class Hammock {
      */
     private static void parseArgs(String[] args) throws IOException, FileFormatException, HammockException, InterruptedException, ExecutionException, Exception {
         if (args.length < 1) {
-            System.err.println("First argument must be a command. Run \"java -jar Hammpck.jar --help\" for more info.");
+            System.err.println("First argument must be a command. Run \"java -jar Hammock.jar --help\" for more info.");
             return;
         }
 
-        if (args[0].equals("--help") || args[0].equals("help") || args[0].equals("-h")) {
+        if (args[0].equals("--help") || args[0].equals("-help") || args[0].equals("help") || args[0].equals("-h") || args[0].equals("-H")) {
             displayHelp();
             return;
         }
@@ -235,11 +241,23 @@ public class Hammock {
         System.err.println("-g, --greedy_threshold 〈int〉   Minimal sequence neede for a sequence to join a cluster");
         System.err.println("-x, --max_shift 〈int〉   maximal sequence-sequence shift. Nonnegative int");
         System.err.println("-p, --gap_penalty 〈int〉   penalty for each position of shift. Nonpositive int");
+        System.err.println("-R, --order [size, alphabetic, random]   The order of sequences during greedy clustering");
+        System.err.println("-S, --seed A seed to make random processes deterministic (if -R random is in use)");
         System.err.println("\n------parameters specific for cluster mode------\n");
         System.err.println("-a, --part_threshold <float [0, 1]>   the proportion of clusters to be used as cores");
         System.err.println("-s, --size_threshold 〈int〉   minimal size of a cluster to be used a core");
         System.err.println("-c, --count_threshold 〈int〉   the exact number of clusters to be used as cores");
         System.err.println("-n, --assign_thresholds 〈float,float,float...〉   sequence of threshold values for sequence to cluster assignment");
+        System.err.println("-v, --overlap thresholds 〈float,float,float...〉   sequence of threshold values of min. cluster overlap");
+        System.err.println("-r, --merge thresholds 〈float,float,float...〉   sequence of threshold values for cluster-cluster comparisons");
+        System.err.println("-e, --relative thresholds   All thresholds are expressed as relative to the number of cluster match states");
+        System.err.println("-b, --absolute thresholds   All thresholds are expressed as absolute values");
+        System.err.println("-y, --max gap proportion   Maximal proportion of gaps allowed in a match state");
+        System.err.println("-k, --min ic 〈float〉   Minimal information content allowed for a match state");
+        System.err.println("-j, --max aln length 〈int〉   Maximal length of cluster MSA including gaps");
+        System.err.println("-u, --max inner gaps 〈int〉   Maximal number of inner (non-trailing) gaps in the MSA");
+        System.err.println("-q, --extension increase length〉   Cluster extension step is allowed to increase MSA length");
+//        System.err.println("-C, --min_correlation <float [-1, 1]>   minimal correlation of cluster/cluster or cluster/sequence label count profiles");
     }
 
     /**
@@ -299,7 +317,7 @@ public class Hammock {
         if (labels == null) {
             labels = getSortedLabels(sequences);
         }
-        
+
         logger.logAndStderr(sequences.size() + " unique sequences after non-specified labels filtered out");
         logger.logAndStderr(new Cluster(sequences, -1).size() + " total sequences after non-specified labels fileterd out");
 
@@ -321,6 +339,7 @@ public class Hammock {
 
         logger.logAndStderr("Greedy clustering...");
         Long time = System.currentTimeMillis();
+        sequences = UniqueSequence.sortSequences(sequences, order);
         List<Cluster> clusters = clusterer.cluster(sequences, scorer);
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
@@ -503,6 +522,11 @@ public class Hammock {
         }
         logger.logAndStderr("Results in: " + finalSequenceCsv);
         logger.logAndStderr("and: " + finalClustersCsv);
+        logger.logAndStderr("\nCalculating KLD...");
+        double kld1 = Statistics.getMeanSystemKld(finalAlnFolder, false);
+        double kld2 = Statistics.getMeanSystemKld(finalAlnFolder, true);
+        logger.logAndStderr("Final system KLD over match state MSA positions: " + kld1);
+        logger.logAndStderr("Final system KLD over all MSA positions: " + kld2);
         if (!inGalaxy) {
             logger.logAndStderr("and: " + finalCl);
         }
@@ -602,6 +626,22 @@ public class Hammock {
             if (args[i].equals("-x") || args[i].equals("--max_shift")) {
                 if (args.length > i + 1) {
                     maxShift = Integer.decode(args[i + 1]);
+                    i++;
+                    continue;
+                }
+            }
+            
+            if (args[i].equals("-R") || args[i].equals("--order")) {
+                if (args.length > i + 1) {
+                    order = args[i + 1];
+                    i++;
+                    continue;
+                }
+            }
+            
+            if (args[i].equals("-S") || args[i].equals("--seed")) {
+                if (args.length > i + 1) {
+                    seed = Integer.decode(args[i + 1]);
                     i++;
                     continue;
                 }
@@ -722,6 +762,14 @@ public class Hammock {
                 }
             }
 
+            if (args[i].equals("-C") || args[i].equals("--min_correlation")) {
+                if (args.length > i + 1) {
+                    minCorrelation = Double.parseDouble(args[i + 1]);
+                    i++;
+                    continue;
+                }
+            }
+
             if (args[i].equals("-q") || args[i].equals("--extension_increase_length")) {
                 extensionIncreaseLength = true;
             }
@@ -766,7 +814,8 @@ public class Hammock {
             String[] splitLine = labelString.split(",");
             labels.addAll(Arrays.asList(splitLine));
         }
-
+        
+        random = new Random(seed);
         initialAlignedCl = workingDirectory + separatorChar + "initial_clusters_aligned.cl";
         initialAlignedSequenceCsv = workingDirectory + separatorChar + "initial_clusters_aligned_sequences.csv";
         initialAlignedClusterCsv = workingDirectory + separatorChar + "initial_clusters.csv";
@@ -1073,14 +1122,13 @@ public class Hammock {
         return env.containsKey("HHLIB");
     }
 
-
     private static Set<Integer> getClusterIdsNotSatisfyingIc(Collection<Cluster> clusters) throws DataException, IOException {
         Set<Integer> result = new HashSet<>();
         for (Cluster cl : clusters) {
             if (!cl.hasMSA()) {
                 throw new DataException("Error, can't check match states for clusters without msas");
             }
-            if (!FileIOManager.checkMatchStatesAndIc(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", minMatchStates, minIc, maxGapProportion)) {
+            if (!FileIOManager.checkMatchStatesAndIc(FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln"), minMatchStates, minIc, maxGapProportion)) {
                 result.add(cl.getId());
             }
         }
@@ -1130,31 +1178,4 @@ class ClusterSizeIdComparator implements Comparator<Cluster> {
     }
 }
 
-/**
- * Compares sequences according to sum of counts of all labels. In case 
- * of equality, compares alphabetically.
- * @author Adam Krejci
- */
-class UniqueSequenceSizeAlphabeticComparator implements Comparator<UniqueSequence>{
 
-    @Override
-    public int compare(UniqueSequence o1, UniqueSequence o2) {
-        int result = new SizeComparator().compare(o1, o2);
-        if (result == 0){
-            result = new UniqueSequenceAlphabeticComparator().compare(o1, o2);
-        }
-        return result;
-    }  
-}
-
-/**
- * Compares sequences alphabetically
- * @author Adam Krejci
- */
-class UniqueSequenceAlphabeticComparator implements Comparator<UniqueSequence>{
-
-    @Override
-    public int compare(UniqueSequence o1, UniqueSequence o2) {
-        return o1.getSequenceString().compareTo(o2.getSequenceString());
-    }   
-}

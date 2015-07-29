@@ -7,7 +7,9 @@ package hammock;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -107,8 +109,12 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
      * this order. 
      * @return array of amino acids in correct order.
      */
-    public static char[] getAminoAcids() {
+    public static char[] getAminoAcidsAndSpecials() {
         return aminoAcids;
+    }
+    
+    public static char[] getAminoAcids(){
+        return Arrays.copyOfRange(aminoAcids, 0, 20);
     }
         
     /**
@@ -169,5 +175,62 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
         } else{
             return -(this.getSequenceString().compareTo(o.getSequenceString()));
         }
+    }
+        
+        
+  /*      ----------STATIC METHODS------------------*/
+        
+    public static List<UniqueSequence> sortSequences(List<UniqueSequence> sequences, String order) throws DataException{
+        List<UniqueSequence> sortedList = sequences;
+        switch(order){                
+            case "size":
+                Collections.sort(sortedList, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator()));
+                break;
+                
+            case "alphabetic":
+                Collections.sort(sortedList, Collections.reverseOrder(new UniqueSequenceAlphabeticComparator()));
+                break;
+                
+            case "random":
+                Collections.shuffle(sortedList, Hammock.random);
+                break;
+            
+            default:
+                throw new DataException("Incorrect sequence order defined. Use one of: size, alphabetic, random");
+        }
+        return sortedList;
+    }    
+        
+        
+}
+
+/**
+ * Compares sequences according to sum of counts of all labels. In case of
+ * equality, compares alphabetically.
+ *
+ * @author Adam Krejci
+ */
+class UniqueSequenceSizeAlphabeticComparator implements Comparator<UniqueSequence> {
+
+    @Override
+    public int compare(UniqueSequence o1, UniqueSequence o2) {
+        int result = new SizeComparator().compare(o1, o2);
+        if (result == 0) {
+            result = new UniqueSequenceAlphabeticComparator().compare(o1, o2);
+        }
+        return result;
+    }
+}
+
+/**
+ * Compares sequences alphabetically
+ *
+ * @author Adam Krejci
+ */
+class UniqueSequenceAlphabeticComparator implements Comparator<UniqueSequence> {
+
+    @Override
+    public int compare(UniqueSequence o1, UniqueSequence o2) {
+        return o1.getSequenceString().compareTo(o2.getSequenceString());
     }
 }
