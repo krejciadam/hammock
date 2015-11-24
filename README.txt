@@ -26,7 +26,7 @@ jar cmvf manifest.mf ../Hammock.jar hammock/*.class
 This generates a file called "Hammock.jar" in the original folder. To run Hammock using the code 
 just compiled, download runnable version from (http://www.recamo.cz/en/software/hammock-cluster-peptides/)
 or a release from the github page (https://github.com/hammock-dev/hammock/releases), extract files from the 
-archive and in folder "dir", replace the original "Hammock.jar" file with the newly built file.
+archive and in folder "dist", replace the original "Hammock.jar" file with the newly built file.
 
 
 

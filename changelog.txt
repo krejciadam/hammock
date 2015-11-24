@@ -1,0 +1,18 @@
+----1.0.3----
+- Bug fixes
+- KLD reporting should now work properly
+
+
+----1.0.2----
+- Added new parameters: 
+-R, --order [size, alphabetic, random]   The order of sequences during greedy clustering
+-S, --seed A seed to make random processes deterministic (if -R random is in use)
+
+
+----1.0.1----
+- Added the inline help option
+- Bug fixes
+
+
+---1.0.0----
+Initial version
