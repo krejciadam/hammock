@@ -83,7 +83,7 @@ public class Statistics {
     }
 
     public static boolean checkCorrelation(Cluster cl, UniqueSequence seq, double minCorrelation) {
-        if ((Hammock.getLabels().size() < 2) || (minCorrelation == -1)) { //one label or any correlation => no control
+        if ((Hammock.getLabels().size() < 2) || (minCorrelation <= -1.0)) { //one label or any correlation => no control
             return true;
         }
         return (checkCorrelation(cl.getLabelCountVector(), getLabelsVector(seq), minCorrelation));

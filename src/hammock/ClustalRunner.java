@@ -65,7 +65,7 @@ public class ClustalRunner {
      * @throws InterruptedException
      * @throws ExecutionException
      */
-    public static ExtendedClusters extendClusters(Map<Cluster, List<HmmsearchSequenceHit>> extensionMap, int minMatchStates, Double minIc) throws InterruptedException, ExecutionException {
+    public static ExtendedClusters extendClusters(Map<Cluster, List<HmmsearchSequenceHit>> extensionMap, int minMatchStates, Double minIc, Scorer scorer) throws InterruptedException, ExecutionException, DataException {
         List<Cluster> resultingClusters = new ArrayList<>();
         List<UniqueSequence> rejectedSequences = new ArrayList<>();
         CompletionService<ExtendClusterResult> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
@@ -76,7 +76,24 @@ public class ClustalRunner {
             for (HmmsearchSequenceHit hit : hits) {
                 sequences.add(hit.getSequence());
             }
-            resultPool.submit(new SingleThreadExtendClusterRunnerClustal(entry.getKey(), sequences, minMatchStates, minIc));
+
+            List<UniqueSequence> selectedSequences = new ArrayList<>();
+            selectedSequences.add(sequences.get(0));
+            if (sequences.size() >= 2) {
+                if (Hammock.filterBeforeAssignment) {
+                    for (int i = 1; i < sequences.size(); i++) {
+                        if (scorer.score(sequences.get(0), sequences.get(i)) >= Hammock.sequenceAddThreshold) {
+                            selectedSequences.add(sequences.get(i));
+                        } else {
+                            rejectedSequences.add(sequences.get(i));
+                        }
+                    }
+
+                } else {
+                    selectedSequences.addAll(sequences.subList(1, sequences.size()));
+                }
+            }
+            resultPool.submit(new SingleThreadExtendClusterRunnerClustal(entry.getKey(), selectedSequences, minMatchStates, minIc));
         }
         for (int i = 0; i < extensionMap.size(); i++) {
             ExtendClusterResult result = resultPool.take().get();

@@ -33,9 +33,6 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         this.id = id;
         int sizeSum = 0;
         labelsMap = new HashMap<>();
-        for (String label : Hammock.getLabels()) {
-            labelsMap.put(label, 0);
-        }
         for (UniqueSequence seq : sequences) {
             sizeSum += seq.size();
             updateLabelsMap(seq);
@@ -67,7 +64,10 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
 
     private void updateLabelsMap(UniqueSequence seq) {
         for (Map.Entry<String, Integer> entry : seq.getLabelsMap().entrySet()) {
-            int count = labelsMap.get(entry.getKey());
+            Integer count = labelsMap.get(entry.getKey());
+            if (count == null){
+                count = 0;
+            }
             count += entry.getValue();
             labelsMap.put(entry.getKey(), count);
         }
@@ -137,18 +137,6 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         return size;
     }
 
-    public String getSavableString() throws IOException {
-        String res = "&" + id + "\n";
-        Collections.sort(sequences, Collections.reverseOrder());
-        for (UniqueSequence seq : sequences) {
-            res = res.concat(seq.getSavableString());
-        }
-        if (this.hasMSA) {
-            res = res.concat("$_alignment:\n");
-            res = res.concat(FileIOManager.fileAsString(Settings.getInstance().getMsaDirectory() + this.id + ".aln"));
-        }
-        return res;
-    }
 
     /**
      * Returns cluster's unique sequences in form of amino acid sequences in

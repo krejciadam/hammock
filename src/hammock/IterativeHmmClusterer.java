@@ -73,6 +73,7 @@ public class IterativeHmmClusterer {
             Integer minMatchStates,
             Double minIc,
             int maxAlnLength,
+            Scorer scorer,
             int nThreads) throws IOException, InterruptedException, ExecutionException, Exception {
 
         AssignmentResult currentState = new AssignmentResult(clusterCores, databaseSequences);
@@ -87,7 +88,7 @@ public class IterativeHmmClusterer {
             List<HmmsearchSequenceHit> hits = HmmerRunner.searchWithHmms(currentState.getClusters(), currentState.getDatabaseSequences());
             Set<UnorderedPair<Cluster>> overlapingPairs = getOverlapingPairs(hits, hmmsearchOverlapThreshold); //must be before assignToClusters, because assignToClusters changes clusters
             Hammock.logger.logAndStderr("Extending clusters...");
-            currentState = assignToClusters(currentState.getClusters(), hits, currentState.getDatabaseSequences(), hmmsearchAssignThreshold); //changes clusters
+            currentState = assignToClusters(currentState.getClusters(), hits, currentState.getDatabaseSequences(), hmmsearchAssignThreshold, scorer); //changes clusters
             Set<Set<Cluster>> mergeGroups;
 
             Set<Cluster> currentClusters = new HashSet<>();
@@ -168,7 +169,7 @@ public class IterativeHmmClusterer {
      * @throws InterruptedException
      * @throws ExecutionException
      */
-    private static AssignmentResult assignToClusters(Collection<Cluster> clusters, Collection<HmmsearchSequenceHit> hits, Collection<UniqueSequence> databaseSequences, Double scoreThreshold) throws IOException, InterruptedException, ExecutionException {
+    private static AssignmentResult assignToClusters(Collection<Cluster> clusters, Collection<HmmsearchSequenceHit> hits, Collection<UniqueSequence> databaseSequences, Double scoreThreshold, Scorer scorer) throws IOException, InterruptedException, ExecutionException, DataException {
         Set<UniqueSequence> remainingSequences = new HashSet<>(databaseSequences);
         Set<Cluster> newClusters = new HashSet<>(clusters);
 
@@ -203,7 +204,7 @@ public class IterativeHmmClusterer {
 
         Hammock.logger.logAndStderr(extensionMap.size() + " clusters to be extended");
 
-        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minMatchStates, Hammock.minIc);
+        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minMatchStates, Hammock.minIc, scorer);
         newClusters.addAll(extendedClusters.getClusters());
         newClusters.addAll(clusters);
         Hammock.logger.logAndStderr(extendedClusters.getRejectedSequences().size() + " sequences rejected");

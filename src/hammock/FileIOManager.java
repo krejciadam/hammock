@@ -15,14 +15,13 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
@@ -42,8 +41,6 @@ public class FileIOManager {
      */
     public static int[][] loadScoringMatrix(String matrixFilePath) throws IOException, HammockException {
         int[][] scoringMatrix = new int[24][24];
-
-        Hammock.logger.logAndStderr("Loading scoring matrix...");
 
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(matrixFilePath)))) {
             String line;
@@ -110,52 +107,30 @@ public class FileIOManager {
     }
 
     /**
-     * Loads unique sequences saved in a file in project's own format
+     *     /**
+     * Loads a fasta file. Retains input order (of first occurrence of a
+     * seuquence) Each seuqence must have a header line starting with ">".
+     * Header may contain sequence label in format: ">any_text|count|label". To
+     * each sequence not having label in the header, default label "no_label" is
+     * assigned. Sequences in fasta file need not to be unique.
      *
-     * @param fileName path to file with unique sequences saved
-     * @return List of UniqueSequence objects that were loaded from file.
+     * @param fileName Path to file to be loaded
+     * @return List of UniqueSequence objects parsed in the input order (of
+     * first occurrence)
      * @throws IOException
+     * @throws FileNotFoundException
      * @throws FileFormatException
      */
-    public static List<UniqueSequence> loadUniqueSequencesFromFile(String fileName) throws IOException, FileFormatException {
-        List<UniqueSequence> result = new ArrayList<>();
+    public static List<UniqueSequence> loadUniqueSequencesFromFasta(String fileName) throws IOException, FileNotFoundException, FileFormatException {
+        Map<String, Map<String, Integer>> sequenceMap = new HashMap<>();
+        List<String> sequenceList = new ArrayList<>();
+        String line;
+        String sequence;
+        String label = null;
+        Integer count = null;
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                result.add(processUniqueSequenceFileLine(line));
-            }
-        } catch (ArrayIndexOutOfBoundsException e) {
-            throw new FileFormatException("Error in sequence file: " + fileName + ". File should contain"
-                    + "lines in format: sequence|label1:count1|label2|count2|label3:count3| etc.");
-        }
-        return result;
-    }
-
-    /**
-     * Loads a fasta file. Each seuqence must have a header line starting with
-     * ">". Header may contain sequence label in format:
-     * ">any_text|count|label". To each sequence not having label in the header,
-     * default label "no_label" is assigned. Sequences in fasta file need not to
-     * be unique.
-     *
-     * @param fileName Path to fasta file to be loaded
-     * @return List of resulting unique sequences
-     * @throws FileNotFoundException
-     * @throws IOException
-     */
-    public static List<UniqueSequence> loadUniqueSequencesFromFasta(String fileName) throws FileNotFoundException, IOException, FileFormatException {
-        List<SeqWithLabel> tempList = new ArrayList<>();
-        List<UniqueSequence> result = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
-            String line;
-            String seq = null;
-            String label = "no_label";
-            int count = 1;
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith(">")) {
-                    if (seq != null) {
-                        tempList.add(new SeqWithLabel(seq, label, count));
-                    }
                     String[] splitLine = line.trim().substring(1).split("\\|");
                     if (splitLine.length >= 2) {
                         count = Integer.decode(splitLine[1].trim());
@@ -171,76 +146,55 @@ public class FileIOManager {
                         label = "no_label";
                     }
                 } else {
-                    seq = line.trim();
+                    if (label == null || count == null) {
+                        throw new FileFormatException("Error. Wrong fasta format. Maybe header or sequence line missing?");
+                    }
+                    sequence = line.trim();
+                    Map<String, Integer> labelsMap = sequenceMap.get(sequence);
+                    if (labelsMap == null) {
+                        labelsMap = new HashMap<>();
+                        labelsMap.put(label, count);
+                        sequenceList.add(sequence);
+                    } else {
+                        Integer oldCount = labelsMap.get(label);
+                        if (oldCount == null) {
+                            oldCount = 0;
+                        }
+                        labelsMap.put(label, oldCount + count);
+                    }
+                    sequenceMap.put(sequence, labelsMap);
+                    label = null; //just for format control
+                    count = null;
                 }
             }
-            if (seq != null) {
-                tempList.add(new SeqWithLabel(seq, label, count)); //add the last sequence
-            }
         }
-        Collections.sort(tempList); //alphabetic sort
-        int startIndex = 0;
-        Map<String, Integer> labelsMap = new HashMap<>();
-        for (int i = 0; i < tempList.size(); i++) {
-            SeqWithLabel currentSeq = tempList.get(i);
-            if (!(currentSeq.getSeq().equals(tempList.get(startIndex).getSeq()))) {
-                result.add(new UniqueSequence(tempList.get(startIndex).getSeq(), labelsMap));
-                labelsMap = new HashMap<>();
-                startIndex = i;
-            }
-            String lab = currentSeq.getLabel();
-            Integer count = labelsMap.get(lab);
-            if (count == null) {
-                count = 0;
-            }
-            count += currentSeq.getCount();
-            labelsMap.put(lab, count);
+        List<UniqueSequence> result = new ArrayList<>();
+        for (String seq : sequenceList) {
+            result.add(new UniqueSequence(seq, sequenceMap.get(seq)));
         }
-        result.add(new UniqueSequence(tempList.get(startIndex).getSeq(), labelsMap)); //add last sequence
-        return result;
+        return (result);
     }
 
     /**
      * Loads UniqueSequence from a .csv table. Table must contain header
-     * specifiing full list of labels. Table fields are separated by semicolon
-     * (;)
+     * specifiing full list of labels. 
      *
      * @param fileName
-     * @param ignore
      * @return
      * @throws IOException
      */
-    public static List<UniqueSequence> loadUniqueSequencesFromTable(String fileName, int[] ignore) throws IOException {
-        Set<Integer> ignoreSet = new HashSet<>();
+    public static List<UniqueSequence> loadUniqueSequencesFromTable(String fileName) throws IOException {
         List<UniqueSequence> result = new ArrayList<>();
-        if (ignore != null) {
-            for (int i : ignore) {
-                ignoreSet.add(i);
-            }
-        }
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
             String line = reader.readLine(); //header line
             String[] headerLine = line.split(",");
             List<String> labels = new ArrayList<>();
             for (int i = 1; i < headerLine.length; i++) {
-                if ((headerLine[i] != null) && (!(ignoreSet.contains(i)))) {
-                    labels.add(headerLine[i]);
-                }
+                labels.add(headerLine[i]);
             }
             while ((line = reader.readLine()) != null) {
-                String[] splitLine = line.split(",");
-                Map<String, Integer> labelsMap = new HashMap<>();
-                int currentLabelsIndex = 0;
-                for (int i = 1; i < splitLine.length; i++) {
-                    if (!(ignoreSet.contains(i))) {
-                        int value = Integer.decode(splitLine[i]);
-                        if (value != 0) {
-                            labelsMap.put(labels.get(currentLabelsIndex), value);
-                        }
-                        currentLabelsIndex++;
-                    }
-                }
-                result.add(new UniqueSequence(splitLine[0], labelsMap));
+                List<String> splitLine = Arrays.asList(line.split(","));
+                result.add(lineToUniqueSequence(splitLine.get(0), splitLine.subList(1, splitLine.size()), labels));
             }
         } catch (IOException e) {
             throw new IOException(e);
@@ -248,117 +202,95 @@ public class FileIOManager {
         return result;
     }
 
-    /**
-     * Legacy method, to be removed in next version
-     *
-     * @param fileName
-     * @return
-     * @throws IOException
-     * @throws FileFormatException
-     */
-    public static List<Cluster> loadClustersFromFileOld(String fileName) throws IOException, FileFormatException {
-        List<Cluster> result = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
-            String line;
-            List<UniqueSequence> clusterSequences = null;
-            Integer id = null;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith(">")) {
-                    if ((clusterSequences != null) && (id != null)) {
-                        result.add(new Cluster(clusterSequences, id));
-                    }
-                    id = Integer.decode(line.substring(1));
-                    clusterSequences = new ArrayList<>();
-                } else {
-                    clusterSequences.add(processUniqueSequenceFileLine(line));
-                }
+    private static UniqueSequence lineToUniqueSequence(String sequence, List<String> labelsLine, List<String> labels) {
+        Map<String, Integer> labelsMap = new HashMap<>();
+        for (int i = 0; i < labelsLine.size(); i++) {
+            int value = Integer.decode(labelsLine.get(i));
+            if (value != 0) {
+                labelsMap.put(labels.get(i), value);
             }
-            result.add(new Cluster(clusterSequences, id)); //add the last cluster
-        } catch (NumberFormatException | NullPointerException e) {
-            throw new FileFormatException("Error in cluster file: "
-                    + fileName + " - wrong format. Original message: " + e.getMessage());
         }
-        return result;
+        return (new UniqueSequence(sequence, labelsMap));
     }
 
-    /**
-     * Loads clusters from file. For every cluster, if MSA is saved, loads this
-     * MSA as well and sets such cluster as hasMSA()
-     *
-     * @param fileName Path to file to be loaded
-     * @return loaded clusters
-     * @throws IOException
-     * @throws FileFormatException
-     */
-    public static List<Cluster> loadClustersFromFile(String fileName) throws IOException, FileFormatException {
+    public static List<Cluster> loadClustersFromCsv(String fileName) throws FileFormatException, IOException {
         List<Cluster> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
+            List<String> header = new ArrayList<>(Arrays.asList(reader.readLine().split(Hammock.csvSeparator)));
+            int alignmentIndex = header.indexOf("alignment");
+            if (alignmentIndex != -1) { //to correct the next index for removing this
+                header.remove(alignmentIndex);
+            }
+            int sumIndex = header.indexOf("sum");
+            if (sumIndex != -1) {
+                header.remove(sumIndex);
+            }
+            List<String> labels = header.subList(2, header.size()); //0: cluster_id, 1: sequence
             String line;
-            List<UniqueSequence> clusterSequences = null;
-            StringBuilder alignment = null;
-            Integer id = null;
+            List<UniqueSequence> sequences = null;
+            StringBuilder alignments = new StringBuilder();
+            int clusterId = -1;
+            int seqIndex = 0;
             while ((line = reader.readLine()) != null) {
-                if (line.startsWith("$")) {                  //read all alignment lines
-                    alignment = new StringBuilder();
-                    while (((line = reader.readLine()) != null) && (!(line.startsWith("&")))) {
-                        alignment.append(line).append("\n");
-                    }
-                    alignment.deleteCharAt(alignment.length() - 1); //delete last /n
-                    if (line == null) {
-                        break;
-                    }
-                }
-                if (line.startsWith("&")) {
-                    if ((clusterSequences != null) && (id != null)) {
-                        Cluster cl = new Cluster(clusterSequences, id);
-                        if (alignment != null) {
-                            FileIOManager.saveStringToFile(alignment.toString(), Settings.getInstance().getMsaDirectory() + id + ".aln");
-                            alignment = null;
+                List<String> splitLine = new ArrayList<>(Arrays.asList(line.split(Hammock.csvSeparator)));
+                int id = Integer.decode(splitLine.get(0));
+                if (id != clusterId) {
+                    if (clusterId != -1) {  //it is not the first cluster => add the cluster
+                        Cluster cl = new Cluster(sequences, clusterId);
+                        if (alignments.length() >= 1) {
+                            FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
                             cl.setAsHasMSA();
+                            result.add(cl);
                         }
-                        result.add(cl);
                     }
-                    id = Integer.decode(line.substring(1));
-                    clusterSequences = new ArrayList<>();
-                } else {
-                    clusterSequences.add(processUniqueSequenceFileLine(line));
+                    clusterId = id;
+                    sequences = new ArrayList<>();
+                    alignments = new StringBuilder();
+                    seqIndex = 0;
                 }
+                if (alignmentIndex != -1) {
+                    alignments.append(">").append(clusterId).append("_").append(seqIndex).append("\n").append(splitLine.get(alignmentIndex)).append("\n");
+                    splitLine.remove(alignmentIndex);
+                    seqIndex++;
+                }
+                if (sumIndex != -1) {
+                    splitLine.remove(sumIndex);
+                }
+                sequences.add(lineToUniqueSequence(splitLine.get(1), splitLine.subList(2, splitLine.size()), labels));
             }
-            Cluster cl = new Cluster(clusterSequences, id); //add the last cluster
-            if (alignment != null) {
-                FileIOManager.saveStringToFile(alignment.toString(), Settings.getInstance().getMsaDirectory() + id + ".aln");
+            Cluster cl = new Cluster(sequences, clusterId);
+            if (alignments.length() >= 1) {
+                FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
                 cl.setAsHasMSA();
+                result.add(cl);
             }
-            result.add(cl);
         } catch (NumberFormatException | NullPointerException e) {
-            e.printStackTrace();
             throw new FileFormatException("Error in cluster file: "
-                    + fileName + " - wrong format. Original message: " + e.getMessage());
+                    + fileName + " - wrong format. Original message: ", e);
         }
-        return result;
-    }
-
-    /**
-     * Processes one line of a file with UniqueSequence objects saved
-     *
-     * @param line line from file with UniqueSequence objects saved
-     * @return
-     * @throws ArrayIndexOutOfBoundsException
-     */
-    private static UniqueSequence processUniqueSequenceFileLine(String line) throws ArrayIndexOutOfBoundsException {
-        Map<String, Integer> labelMap = new HashMap<>();
-        String[] splitLine = line.split("\\|");
-        String sequence = splitLine[0];
-        for (int i = 1; i < splitLine.length; i++) {
-            String[] splitField = splitLine[i].split(":");
-            labelMap.put(splitField[0], Integer.parseInt(splitField[1]));
-        }
-        return new UniqueSequence(sequence, labelMap);
+        return (result);
     }
 
     /**
      * Saves a csv file containing one line per sequence for every cluster on
-     * input.
+     * input, retains the order defined by orderedSequences
+     *
+     * @param clusters Clusters to be saved
+     * @param filePath Path to resulting file
+     * @param labels List of labels. Only these labels and their appropriate
+     * counts will be saved in resulting file.
+     * @param orderedSequences Defines the order of the sequences in the file
+     * @throws IOException
+     */
+    public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences) throws IOException {
+        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels);
+    }
+
+    /**
+     * Saves a csv file containing one line per sequence for every cluster on
+     * input. The resulting file is ordered from the largest cluster to the
+     * smallest, within a cluster, sequences are ordered by size and
+     * alphabetically
      *
      * @param clusters Clusters to be saved
      * @param filePath Path to resulting file
@@ -367,44 +299,58 @@ public class FileIOManager {
      * @throws IOException
      */
     public static void saveClusterSequencesToCsv(Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
-        List<Cluster> sortedList = new ArrayList<>(clusters);
-        Collections.sort(sortedList, Collections.reverseOrder());
+        List<UniqueSequence> sortedSequences = new ArrayList<>();
+        List<Cluster> clusterSortedList = new ArrayList<>(clusters);
+        Collections.sort(clusterSortedList, Collections.reverseOrder());
+        for (Cluster cl : clusterSortedList) {
+            List<UniqueSequence> sequences = cl.getSequences();
+            Collections.sort(sequences, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator()));
+            sortedSequences.addAll(sequences);
+        }
+        writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels);
+    }
+
+    private static void writeClusterSequencesToCsv(Collection<UniqueSequence> sequences, Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
+        Map<String, String> msaMap = new HashMap<>();
+        Map<String, Cluster> sequenceClusterMap = new HashMap<>();
+        for (Cluster cl : clusters) {
+            for (UniqueSequence seq : cl.getSequences()) {
+                sequenceClusterMap.put(seq.getSequenceString(), cl);
+            }
+            if (cl.hasMSA()) {
+                List<String> msa = FileIOManager.getAlignmentLines(cl);
+                for (String msaLine : msa) {
+                    msaMap.put(msaLine.replace("-", ""), msaLine);
+                }
+            }
+        }
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            writer.write("cluster_id;sequence;alignment;sum");
+            writer.write("cluster_id" + Hammock.csvSeparator + "sequence" + Hammock.csvSeparator + "alignment" + Hammock.csvSeparator + "sum");
             for (String label : labels) {
-                writer.write(";" + label);
+                writer.write(Hammock.csvSeparator + label);
             }
             writer.newLine();
-            for (Cluster cl : sortedList) {
-                List<String> msa = null;
-                Map<String, String> msaMap = null;
-                if (cl.hasMSA()) {
-                    msa = FileIOManager.getAlignmentLines(cl);
-                    msaMap = new HashMap<>();
-                    for (String msaLine : msa) {
-                        msaMap.put(msaLine.replace("-", ""), msaLine);
-                    }
-                }
-                List<UniqueSequence> sequences = cl.getSequences();
-                Collections.sort(sequences, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator()));
-                for (int i = 0; i < sequences.size(); i++) {
-                    UniqueSequence seq = sequences.get(i);
-                    writer.write(cl.getId() + ";" + seq.getSequenceString() + ";");
-                    if (cl.hasMSA()) {
-                        writer.write(msaMap.get(seq.getSequenceString()) + ";");
+            for (UniqueSequence seq : sequences) {
+                Cluster cluster = sequenceClusterMap.get(seq.getSequenceString());
+                if (cluster != null) {
+                    writer.write(cluster.getId() + Hammock.csvSeparator + seq.getSequenceString() + Hammock.csvSeparator);
+                    if (cluster.hasMSA()) {
+                        writer.write(msaMap.get(seq.getSequenceString()) + Hammock.csvSeparator);
                     } else {
-                        writer.write("NA;");
+                        writer.write("NA" + Hammock.csvSeparator);
                     }
-                    writer.write("" + seq.size());
-                    for (String label : labels) {
-                        Integer count = seq.getLabelsMap().get(label);
-                        if (count == null) {
-                            count = 0;
-                        }
-                        writer.write(";" + count);
-                    }
-                    writer.newLine();
+                } else {
+                    writer.write("NA" + Hammock.csvSeparator + seq.getSequenceString() + Hammock.csvSeparator + "NA" + Hammock.csvSeparator);
                 }
+                writer.write("" + seq.size());
+                for (String label : labels) {
+                    Integer count = seq.getLabelsMap().get(label);
+                    if (count == null) {
+                        count = 0;
+                    }
+                    writer.write(Hammock.csvSeparator + count);
+                }
+                writer.newLine();
             }
         } catch (IOException e) {
             throw new IOException(e);
@@ -423,22 +369,22 @@ public class FileIOManager {
         List<Cluster> sortedList = new ArrayList<>(clusters);
         Collections.sort(sortedList, Collections.reverseOrder());
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            writer.write("cluster_id;main_sequence;sum");
+            writer.write("cluster_id" + Hammock.csvSeparator + "main_sequence" + Hammock.csvSeparator + "sum");
             for (String label : labels) {
-                writer.write(";" + label);
+                writer.write(Hammock.csvSeparator + label);
             }
             writer.newLine();
             for (Cluster cl : sortedList) {
                 List<UniqueSequence> sequences = cl.getSequences();
                 Collections.sort(sequences, Collections.reverseOrder());
-                writer.write(cl.getId() + ";" + sequences.get(0).getSequenceString() + ";" + cl.size());
+                writer.write(cl.getId() + Hammock.csvSeparator + sequences.get(0).getSequenceString() + Hammock.csvSeparator + cl.size());
                 Map<String, Integer> clusterCountMap = getClusterLabelsMap(cl);
                 for (String label : labels) {
                     Integer count = clusterCountMap.get(label);
                     if (count == null) {
                         count = 0;
                     }
-                    writer.write(";" + count);
+                    writer.write(Hammock.csvSeparator + count);
                 }
                 writer.newLine();
             }
@@ -484,37 +430,17 @@ public class FileIOManager {
         Map<String, Integer> uniqueMap = getUniqueLabelCounts(sequences, labels);
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             for (String label : labels) {
-                writer.write(";" + label);
+                writer.write(Hammock.csvSeparator + label);
             }
             writer.newLine();
             writer.write("total_count");
             for (String label : labels) {
-                writer.write(";" + totalMap.get(label));
+                writer.write(Hammock.csvSeparator + totalMap.get(label));
             }
             writer.newLine();
             writer.write("unique_count");
             for (String label : labels) {
-                writer.write(";" + uniqueMap.get(label));
-            }
-        } catch (IOException e) {
-            throw new IOException(e);
-        }
-    }
-
-    /**
-     * Saves a Collection of Savable objects to a file in reversed natural
-     * ordering. No linebreaks are added.
-     *
-     * @param clusters
-     * @param filePath Path to a file Savable objects will be saved to.
-     * @throws IOException
-     */
-    public static void saveClustersToFile(Collection<Cluster> clusters, String filePath) throws IOException {
-        List<Cluster> sortedList = new ArrayList<>(clusters);
-        Collections.sort(sortedList, Collections.reverseOrder());
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            for (Cluster cluster : sortedList) {
-                writer.write(cluster.getSavableString());
+                writer.write(Hammock.csvSeparator + uniqueMap.get(label));
             }
         } catch (IOException e) {
             throw new IOException(e);
@@ -848,19 +774,20 @@ public class FileIOManager {
             }
         }
     }
-    
+
     /**
      * Returns absolute paths to all files in input folder
+     *
      * @param folderName path to the folder of interest
-     * @return 
+     * @return
      */
-    public static List<String> listFolderContents(String folderName){
+    public static List<String> listFolderContents(String folderName) {
         File[] contents = new File(folderName).listFiles();
         List<String> res = new ArrayList<>();
-        for (File f : contents){
+        for (File f : contents) {
             res.add(f.getAbsolutePath());
         }
-        return(res);
+        return (res);
     }
 
     /**
@@ -1162,8 +1089,8 @@ public class FileIOManager {
         return (alignmentLines.get(0).length() <= maxLength);
     }
 
-    public static boolean checkBothInnerGaps(List<String> alignmentLines, int maxGaps){
-        return((countInnerGaps(alignmentLines.get(0)) <= maxGaps) && (countInnerGaps(alignmentLines.get(alignmentLines.size() - 1)) <= maxGaps));
+    public static boolean checkBothInnerGaps(List<String> alignmentLines, int maxGaps) {
+        return ((countInnerGaps(alignmentLines.get(0)) <= maxGaps) && (countInnerGaps(alignmentLines.get(alignmentLines.size() - 1)) <= maxGaps));
     }
 
     public static boolean checkLastInnerGaps(String inFile, int maxGaps) throws IOException {
@@ -1242,42 +1169,6 @@ public class FileIOManager {
             result.addAll(cl.getSequences());
         }
         return result;
-    }
-}
-
-/**
- * This class is a pre-stage for UniqueSequence object when loading sequences
- * from .fasta files
- *
- * @author Adam Krejci
- */
-class SeqWithLabel implements Comparable<SeqWithLabel> {
-
-    private final String seq;
-    private final String label;
-    private final int count;
-
-    public SeqWithLabel(String seq, String label, int count) {
-        this.seq = seq;
-        this.label = label;
-        this.count = count;
-    }
-
-    public String getSeq() {
-        return seq;
-    }
-
-    public String getLabel() {
-        return label;
-    }
-
-    public int getCount() {
-        return count;
-    }
-
-    @Override
-    public int compareTo(SeqWithLabel o) {
-        return this.seq.compareTo(o.getSeq());
     }
 }
 

@@ -1,15 +1,20 @@
-----1.0.3----
+----1.0.4----	2016_01_15
+- all input/output tabular files are now tab-delimited
+- .cl format no longer in use (.cl files are not saved and can't be loaded). Clusters can be loaded in .tsv format
+- New output file saved for every run in greedy and full mode: _clusters_sequences_original_order.tsv
+- Added controls for external tools: if they don't run properly, error messages should be more informative
+
+----1.0.3----	2015_11_24
 - Bug fixes
 - KLD reporting should now work properly
 
-
-----1.0.2----
+----1.0.2----	2015_07_29
 - Added new parameters: 
 -R, --order [size, alphabetic, random]   The order of sequences during greedy clustering
 -S, --seed A seed to make random processes deterministic (if -R random is in use)
 
 
-----1.0.1----
+----1.0.1----	2015_04_17
 - Added the inline help option
 - Bug fixes
 

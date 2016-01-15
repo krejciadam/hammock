@@ -127,18 +127,6 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
         return labelsMap;
     }
     
-    /**
-     * Formates this object as a string to be written to a file.
-     * @return 
-     */
-    public String getSavableString(){
-        String res = this.getSequenceString();
-        for (Map.Entry<String, Integer> entry : this.labelsMap.entrySet()){
-            res = res.concat("|" + entry.getKey() + ":" + entry.getValue());
-        }
-        res = res.concat("\n");
-        return res;
-    }
 
     @Override
     public int hashCode() {

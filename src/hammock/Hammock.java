@@ -3,8 +3,10 @@
  */
 package hammock;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -30,13 +32,17 @@ import java.util.concurrent.Executors;
 public class Hammock {
 
     public static final char separatorChar = File.separatorChar; //system separator
+    public static final String csvSeparator = "\t";
     private static final String parentDir = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
+    private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
     public static int nThreads = 4;
     private static List<String> labels = null;
+    private static String matrixFile = parentDir + separatorChar + "matrices" + separatorChar + "blosum62.txt";
+    public static int[][] scoringMatrix = null;
 
     public static List<String> getLabels() {
         return labels;
@@ -49,27 +55,25 @@ public class Hammock {
     public static Random random = null;
 
     //common - preset
-    private static String initialAlignedCl;
-    private static String initialAlignedSequenceCsv;
-    private static String initialAlignedClusterCsv;
-    private static String finalCl;
+    private static String initialClustersSequencesCsv;
+    private static String initialClusters;
+    private static String initialClustersSequencesOrderedCsv;
     private static String finalRemainingSequences;
     private static String finalSequenceCsv;
     private static String finalClustersCsv;
+    private static String finalSequenceOrderedCsv;
     private static String initialAlnFolder;
     private static String inputStatistics;
     private static String finalAlnFolder;
     public static Logger logger;
     public static int seed = 42;
-    public static final String countMatrixFile =  parentDir + separatorChar + "settings" + separatorChar + "misc" + separatorChar + "blosum62.freq_rownorm";
+    public static final String countMatrixFile = parentDir + separatorChar + "settings" + separatorChar + "misc" + separatorChar + "blosum62.freq_rownorm";
 
     //greedy
     private static String inputType = "fasta";
-    private static String matrixFile = parentDir + separatorChar + "matrices" + separatorChar + "blosum62.txt";
     private static Integer greedyThreshold = null;
     private static int shiftPenalty = 0;
     private static int maxShift = 3;
-    private static int[] ignore = null;
     private static String order = "size";
 
     public static Map<Integer, UniqueSequence> pivotMap = null;                 //this should be solved another way, without global variables
@@ -93,13 +97,17 @@ public class Hammock {
     public static Integer maxAlnLength = null;
     public static int maxInnerGaps = 0;
     public static boolean extensionIncreaseLength = false;
+    //hmm - filtering
+    public static boolean filterBeforeAssignment = false;
+    public static int sequenceAddThreshold = 12;
+    public static int gapOpenPenalty = -5;
+    public static int gapExtendPenalty = -1;
 
     //galaxy
     private static String galaxyFinalClustersCsv;
     private static String galaxyFinalSequenceCsv;
 
-    public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception { 
-             
+    public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
             parseArgs(args);
         } catch (FileFormatException e) {
@@ -236,7 +244,7 @@ public class Hammock {
         System.err.println("-t, --threads <int>   number of threads to be used");
         System.err.println("-l, --labels <str,str,str...>  list of sequence labels to use");
         System.err.println("\n------parameters specific for greedy mode------\n");
-        System.err.println("-f, --file_format <[fasta,seq,tab]>   file format of input file specified by -i");
+        System.err.println("-f, --file_format <[fasta,tab]>   file format of input file specified by -i");
         System.err.println("-m, --matrix <file>   path to substitution matrix file");
         System.err.println("-g, --greedy_threshold 〈int〉   Minimal sequence neede for a sequence to join a cluster");
         System.err.println("-x, --max_shift 〈int〉   maximal sequence-sequence shift. Nonnegative int");
@@ -272,12 +280,12 @@ public class Hammock {
      */
     private static void runFull() throws IOException, HammockException, FileFormatException, InterruptedException, ExecutionException, Exception {
         if (inGalaxy) {
-            initialAlignedCl = Settings.getInstance().getTempDirectory() + separatorChar + "greedy_aligned_cl";
+            initialClustersSequencesCsv = Settings.getInstance().getTempDirectory() + separatorChar + "greedy_aligned_cl";
             finalClustersCsv = galaxyFinalClustersCsv;
             finalSequenceCsv = galaxyFinalSequenceCsv;
         }
         runGreedyClustering();
-        inputFileName = initialAlignedCl;
+        inputFileName = initialClustersSequencesCsv;
         runClustering();
     }
 
@@ -297,11 +305,8 @@ public class Hammock {
         if (inputType.equals("fasta")) {
             sequences = FileIOManager.loadUniqueSequencesFromFasta(inputFileName);
         }
-        if (inputType.equals("seq")) {
-            sequences = FileIOManager.loadUniqueSequencesFromFile(inputFileName);
-        }
         if (inputType.equals("tab")) {
-            sequences = FileIOManager.loadUniqueSequencesFromTable(inputFileName, ignore);
+            sequences = FileIOManager.loadUniqueSequencesFromTable(inputFileName);
         }
 
         if (sequences == null) {
@@ -320,6 +325,8 @@ public class Hammock {
 
         logger.logAndStderr(sequences.size() + " unique sequences after non-specified labels filtered out");
         logger.logAndStderr(new Cluster(sequences, -1).size() + " total sequences after non-specified labels fileterd out");
+        initialSequences = new ArrayList<>();
+        initialSequences.addAll(sequences);
 
         if (sequences.isEmpty()) {
             throw new FileFormatException("Error. No sequences (with specified labels) to cluster.");
@@ -328,12 +335,17 @@ public class Hammock {
             greedyThreshold = setGreedyThreshold(sequences);
             logger.logAndStderr("Greedy clustering threshold not set. Setting automatically based on mean sequence length to: " + greedyThreshold);
         }
+        int correctMaxShift = setMaxShift(sequences);
+        if (maxShift != correctMaxShift) {
+            maxShift = correctMaxShift;
+            logger.logAndStderr("Setting max shift to " + correctMaxShift + " as the length of the shortest sequence is only " + (correctMaxShift + 1));
+        }
         logger.logAndStderr("Generating input statistics...");
         if (!inGalaxy) {
             FileIOManager.saveInputStatistics(sequences, labels, inputStatistics);
         }
         SequenceClusterer clusterer;
-        ShiftedScorer scorer = new ShiftedScorer(FileIOManager.loadScoringMatrix(matrixFile), shiftPenalty, maxShift);
+        ShiftedScorer scorer = new ShiftedScorer(scoringMatrix, shiftPenalty, maxShift);
 
         clusterer = new AligningGreedySequenceClusterer(greedyThreshold);
 
@@ -350,14 +362,14 @@ public class Hammock {
         }
         logger.logAndStderr("Ready. Total time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Saving results to output files...");
-        FileIOManager.saveClustersToFile(clusters, initialAlignedCl);
+        FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels);
+        FileIOManager.saveClusterSequencesToCsvOrdered(clusters, initialClustersSequencesOrderedCsv, labels, initialSequences);
         if (!inGalaxy) {
-            FileIOManager.saveClusterSequencesToCsv(clusters, initialAlignedSequenceCsv, labels);
-            FileIOManager.SaveClustersToCsv(clusters, initialAlignedClusterCsv, labels);
+            FileIOManager.SaveClustersToCsv(clusters, initialClusters, labels);
         }
-        logger.logAndStderr("Greedy clustering results in: " + initialAlignedSequenceCsv);
-        logger.logAndStderr("and: " + initialAlignedClusterCsv);
-        logger.logAndStderr("and: " + initialAlignedCl);
+        logger.logAndStderr("Greedy clustering results in: " + initialClusters);
+        logger.logAndStderr("and: " + initialClustersSequencesCsv);
+        logger.logAndStderr("and: " + initialClustersSequencesOrderedCsv);
     }
 
     /**
@@ -370,11 +382,13 @@ public class Hammock {
      */
     private static void runClustering() throws IOException, FileFormatException, ExecutionException, Exception {
         logger.logAndStderr("\nLoading clusters...");
-        List<Cluster> inClusters = FileIOManager.loadClustersFromFile(inputFileName);
+        List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName);
         if (!fullClustering) {
             logger.logAndStderr("Generating input statistics...");
             if (labels == null) {
                 labels = getSortedLabels(FileIOManager.getAllSequences(inClusters));
+            } else{
+                inClusters = filterClustersForLabels(inClusters, labels);
             }
             if (!inGalaxy) {
                 FileIOManager.saveInputStatistics(FileIOManager.getAllSequences(inClusters), labels, inputStatistics);
@@ -454,11 +468,7 @@ public class Hammock {
 
         fullHHClustering = new boolean[overlapThresholdSequence.length];
         for (int i = 0; i < fullHHClustering.length; i++) {
-            if (overlapThresholdSequence[i] == 0.0) {
-                fullHHClustering[i] = true;
-            } else {
-                fullHHClustering[i] = false;
-            }
+            fullHHClustering[i] = overlapThresholdSequence[i] == 0.0;
         }
 
         int toBuild = 0;
@@ -487,9 +497,8 @@ public class Hammock {
         if (toBuild > 0) {
             logger.logAndStderr("Saving newly aligned clusters...");
             if (!inGalaxy) {
-                FileIOManager.saveClustersToFile(inClusters, initialAlignedCl);
-                FileIOManager.saveClusterSequencesToCsv(inClusters, initialAlignedSequenceCsv, labels);
-                FileIOManager.SaveClustersToCsv(inClusters, initialAlignedClusterCsv, labels);
+                FileIOManager.saveClusterSequencesToCsv(inClusters, initialClustersSequencesCsv, labels);
+                FileIOManager.SaveClustersToCsv(inClusters, initialClusters, labels);
 
             }
         }
@@ -501,7 +510,11 @@ public class Hammock {
         }
         logger.logAndStderr("\nClustering in " + assignThresholdSequence.length + " rounds...");
         long time = System.currentTimeMillis();
-        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, hhMergeThresholdSequence, fullHHClustering, minMatchStates, minIc, Hammock.maxAlnLength, nThreads);
+        Scorer scorer = null;
+        if (Hammock.filterBeforeAssignment) {
+            scorer = new LocalAlignmentScorer(scoringMatrix, gapOpenPenalty, gapExtendPenalty);
+        }
+        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, hhMergeThresholdSequence, fullHHClustering, minMatchStates, minIc, Hammock.maxAlnLength, scorer, nThreads);
         List<Cluster> resultingClusters = result.getClusters();
         logger.logAndStderr("\nReady. Clustering time : " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + resultingClusters.size());
@@ -509,11 +522,13 @@ public class Hammock {
         logger.logAndStderr("Unique sequences not assigned: " + result.getDatabaseSequences().size() + ", total sequences not assigned: " + Hammock.getTotalSequenceCount(result.getDatabaseSequences()));
         logger.logAndStderr("Saving results to outupt files...");
         if (!inGalaxy) {
-            FileIOManager.saveClustersToFile(resultingClusters, finalCl);
             FileIOManager.saveUniqueSequencesToFasta(result.getDatabaseSequences(), finalRemainingSequences);
         }
         FileIOManager.saveClusterSequencesToCsv(resultingClusters, finalSequenceCsv, labels);
         FileIOManager.SaveClustersToCsv(resultingClusters, finalClustersCsv, labels);
+        if (initialSequences != null){
+            FileIOManager.saveClusterSequencesToCsvOrdered(resultingClusters, finalSequenceOrderedCsv, labels, initialSequences);
+        }
         if (!inGalaxy) {
             for (Cluster cl : resultingClusters) {
                 FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + separatorChar + cl.getId() + ".aln",
@@ -522,13 +537,15 @@ public class Hammock {
         }
         logger.logAndStderr("Results in: " + finalSequenceCsv);
         logger.logAndStderr("and: " + finalClustersCsv);
-        logger.logAndStderr("\nCalculating KLD...");
-        double kld1 = Statistics.getMeanSystemKld(finalAlnFolder, false);
-        double kld2 = Statistics.getMeanSystemKld(finalAlnFolder, true);
-        logger.logAndStderr("Final system KLD over match state MSA positions: " + kld1);
-        logger.logAndStderr("Final system KLD over all MSA positions: " + kld2);
+        if (initialSequences != null){
+            logger.logAndStderr("and: " + finalSequenceOrderedCsv);
+        }
         if (!inGalaxy) {
-            logger.logAndStderr("and: " + finalCl);
+            logger.logAndStderr("\nCalculating KLD...");
+            double kld1 = Statistics.getMeanSystemKld(finalAlnFolder, false);
+            double kld2 = Statistics.getMeanSystemKld(finalAlnFolder, true);
+            logger.logAndStderr("Final system KLD over match state MSA positions: " + kld1);
+            logger.logAndStderr("Final system KLD over all MSA positions: " + kld2);
         }
     }
 
@@ -550,6 +567,14 @@ public class Hammock {
             if (args[i].equals("-d") || args[i].equals("--outputDirectory")) {
                 if (args.length > i + 1) {
                     workingDirectory = args[i + 1];
+                    i++;
+                    continue;
+                }
+            }
+
+            if (args[i].equals("-m") || args[i].equals("--matrix")) {
+                if (args.length > i + 1) {
+                    matrixFile = args[i + 1];
                     i++;
                     continue;
                 }
@@ -608,13 +633,6 @@ public class Hammock {
                     continue;
                 }
             }
-            if (args[i].equals("-m") || args[i].equals("--matrix")) {
-                if (args.length > i + 1) {
-                    matrixFile = args[i + 1];
-                    i++;
-                    continue;
-                }
-            }
             if (args[i].equals("-g") || args[i].equals("--greedy_threshold")) {
                 if (args.length > i + 1) {
                     greedyThreshold = Integer.decode(args[i + 1]);
@@ -630,7 +648,7 @@ public class Hammock {
                     continue;
                 }
             }
-            
+
             if (args[i].equals("-R") || args[i].equals("--order")) {
                 if (args.length > i + 1) {
                     order = args[i + 1];
@@ -638,7 +656,7 @@ public class Hammock {
                     continue;
                 }
             }
-            
+
             if (args[i].equals("-S") || args[i].equals("--seed")) {
                 if (args.length > i + 1) {
                     seed = Integer.decode(args[i + 1]);
@@ -781,7 +799,7 @@ public class Hammock {
      * Checks if common arguments are sane and sets up file paths
      *
      */
-    private static boolean checkCommonArgs() {
+    private static boolean checkCommonArgs() throws IOException, HammockException {
         if (inputFileName == null) {
             System.err.println("Error. Parameter input file (-i or --input) missing with no default.");
             return false;
@@ -814,18 +832,19 @@ public class Hammock {
             String[] splitLine = labelString.split(",");
             labels.addAll(Arrays.asList(splitLine));
         }
-        
+
         random = new Random(seed);
-        initialAlignedCl = workingDirectory + separatorChar + "initial_clusters_aligned.cl";
-        initialAlignedSequenceCsv = workingDirectory + separatorChar + "initial_clusters_aligned_sequences.csv";
-        initialAlignedClusterCsv = workingDirectory + separatorChar + "initial_clusters.csv";
-        finalCl = workingDirectory + separatorChar + "final_clusters.cl";
+        initialClustersSequencesCsv = workingDirectory + separatorChar + "initial_clusters_sequences.tsv";
+        initialClustersSequencesOrderedCsv = workingDirectory + separatorChar + "initial_clusters_sequences_original_order.tsv";
+        initialClusters = workingDirectory + separatorChar + "initial_clusters.tsv";
         finalRemainingSequences = workingDirectory + separatorChar + "final_remaining_sequences.fa";
-        finalSequenceCsv = workingDirectory + separatorChar + "final_clusters_sequences.csv";
-        finalClustersCsv = workingDirectory + separatorChar + "final_clusters.csv";
-        inputStatistics = workingDirectory + separatorChar + "input_statistics.csv";
+        finalSequenceCsv = workingDirectory + separatorChar + "final_clusters_sequences.tsv";
+        finalSequenceOrderedCsv = workingDirectory + separatorChar + "final_clusters_sequences_original_order.tsv";
+        finalClustersCsv = workingDirectory + separatorChar + "final_clusters.tsv";
+        inputStatistics = workingDirectory + separatorChar + "input_statistics.tsv";
 
         threadPool = Executors.newFixedThreadPool(nThreads);
+        scoringMatrix = FileIOManager.loadScoringMatrix(matrixFile);
         return true;
     }
 
@@ -846,11 +865,18 @@ public class Hammock {
      * Checks if command line arguments for cluster mode are sane
      *
      */
-    private static boolean checkClusteringArgs() {
-        if (!checkEnvVariable()) {
+    private static boolean checkClusteringArgs() throws IOException, InterruptedException {
+        if (!checkEnvVariable("HHLIB")) {
             System.err.println("Error. Environmental variable \"HHLIB\" not set. Set it so that it contains path to: hhsuite_folder/lib/hh ");
             return false;
         }
+        
+        checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega");
+        checkExternalProgram(Settings.getInstance().getHmmbuildCommand(), Arrays.asList("-h"), "hmmbuild");
+        checkExternalProgram(Settings.getInstance().getHmmsearchCommand(), Arrays.asList("-h"), "hmmsearch");
+        checkExternalProgram(Settings.getInstance().getHhmakeCommand(), Arrays.asList("-h"), "hhmake");
+        checkExternalProgram(Settings.getInstance().getHhsearchCommand(), Arrays.asList("-h"), "hhsearch");
+        
         if ((partThreshold != null) && ((partThreshold > 1.0) || (partThreshold < 0.0))) {
             System.err.println("Error. Parameter -a (--part_threshold) must be within interval (0.0, 1.0)).");
             return false;
@@ -903,6 +929,46 @@ public class Hammock {
         return true;
     }
 
+    
+    private static boolean checkEnvVariable(String variable) {
+        Map<String, String> env = System.getenv();
+        return env.containsKey(variable);
+    }
+
+    /**
+     * Check if external program returns no errors. Returns true if the length
+     * of stderr is zero, throws an exception otherwise.
+     * @param command A command to be run
+     * @param args all command args
+     * @param programName Program name to be displayed in the exception message
+     * @return true, if stderr of the program is of length 0, throws an exception otherwise.
+     * @throws IOException if length of stderr is not 0.
+     * @throws InterruptedException 
+     */
+    private static boolean checkExternalProgram(String command, List<String> args, String programName) throws IOException, InterruptedException {
+        ByteArrayOutputStream errorBaos = new ByteArrayOutputStream();
+        PrintStream errorStream = new PrintStream(errorBaos);
+        ByteArrayOutputStream outputBaos = new ByteArrayOutputStream();
+        PrintStream outputStream = new PrintStream(outputBaos);
+
+        try {
+            ExternalProcessRunner.runProcess(command, args, outputStream, errorStream, "");
+        } catch (IOException e) {
+            throw new IOException("Error, can't run " + programName + ". Check, if the program is installed properly and and runnable.\n"
+                    + "Current path to " + programName + ": " + Settings.getInstance().getClustalCommand() + "\n"
+                    + "This path can be changed in settings.prop file.\n"
+                    + "Original excepton message: \n"
+                    + e.getMessage());
+        }
+        if (errorBaos.toString().length() == 0) {
+            return (true);
+        } else {
+            throw new IOException("Error, " + programName + " won't run properly. Make sure it runs and try again. \n"
+                    + "original error message: \n" + errorBaos.toString() + ""
+                    + "original stdout message: \n" + outputBaos.toString());
+        }
+    }
+
     /**
      * Sets default value for greedy clustering threshold
      *
@@ -913,6 +979,14 @@ public class Hammock {
         double meanLength = getMeanSequenceLength(sequences);
         int result = (int) Math.round(meanLength * 2.0);
         return result;
+    }
+
+    private static int setMaxShift(Collection<UniqueSequence> sequences) {
+        int minLength = Integer.MAX_VALUE;
+        for (UniqueSequence seq : sequences) {
+            minLength = Math.min(minLength, seq.getSequence().length);
+        }
+        return Math.min(maxShift, (minLength - 1));
     }
 
     /**
@@ -1101,6 +1175,14 @@ public class Hammock {
         return nCores;
     }
 
+    private static List<Cluster> filterClustersForLabels(Collection<Cluster> clusters, List<String> labels){
+        List<Cluster> result = new ArrayList<>();
+        for (Cluster cl : clusters){
+            result.add(new Cluster(filterSequencesForLabels(cl.getSequences(), labels), cl.getId()));
+        }
+        return(result);
+    }
+    
     private static List<UniqueSequence> filterSequencesForLabels(Collection<UniqueSequence> sequences, List<String> labels) {
         List<UniqueSequence> result = new ArrayList<>();
         for (UniqueSequence seq : sequences) {
@@ -1115,11 +1197,6 @@ public class Hammock {
             }
         }
         return result;
-    }
-
-    private static boolean checkEnvVariable() {
-        Map<String, String> env = System.getenv();
-        return env.containsKey("HHLIB");
     }
 
     private static Set<Integer> getClusterIdsNotSatisfyingIc(Collection<Cluster> clusters) throws DataException, IOException {
@@ -1177,5 +1254,3 @@ class ClusterSizeIdComparator implements Comparator<Cluster> {
         }
     }
 }
-
-
