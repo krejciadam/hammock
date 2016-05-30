@@ -20,8 +20,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -182,18 +184,19 @@ public class FileIOManager {
      * @param fileName
      * @return
      * @throws IOException
+     * @throws hammock.FileFormatException if wrong amino acid letter is used
      */
-    public static List<UniqueSequence> loadUniqueSequencesFromTable(String fileName) throws IOException {
+    public static List<UniqueSequence> loadUniqueSequencesFromTable(String fileName) throws IOException, FileFormatException {
         List<UniqueSequence> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
             String line = reader.readLine(); //header line
-            String[] headerLine = line.split(",");
+            String[] headerLine = line.split(Hammock.csvSeparator);
             List<String> labels = new ArrayList<>();
             for (int i = 1; i < headerLine.length; i++) {
                 labels.add(headerLine[i]);
             }
             while ((line = reader.readLine()) != null) {
-                List<String> splitLine = Arrays.asList(line.split(","));
+                List<String> splitLine = Arrays.asList(line.split(Hammock.csvSeparator));
                 result.add(lineToUniqueSequence(splitLine.get(0), splitLine.subList(1, splitLine.size()), labels));
             }
         } catch (IOException e) {
@@ -202,7 +205,7 @@ public class FileIOManager {
         return result;
     }
 
-    private static UniqueSequence lineToUniqueSequence(String sequence, List<String> labelsLine, List<String> labels) {
+    private static UniqueSequence lineToUniqueSequence(String sequence, List<String> labelsLine, List<String> labels) throws FileFormatException {
         Map<String, Integer> labelsMap = new HashMap<>();
         for (int i = 0; i < labelsLine.size(); i++) {
             int value = Integer.decode(labelsLine.get(i));
@@ -212,8 +215,31 @@ public class FileIOManager {
         }
         return (new UniqueSequence(sequence, labelsMap));
     }
+    
+    public static List<Cluster> loadClusterAlignmentsFromFile(List<Cluster> clusters, String fileName) throws FileFormatException, IOException{
+        Set<Integer> ids = new HashSet<>();
+        for (Cluster cl : clusters){
+            ids.add(cl.getId());
+        }
+        List<Cluster> loadedClusters = loadDataFromCsv(fileName, ids, false);
+        Map<Integer, Cluster> loadedClustersMap = new HashMap<>();
+        for (Cluster cl : loadedClusters){
+            loadedClustersMap.put(cl.getId(), cl);
+        }
+        for (Cluster cl : clusters){
+            if (cl.size() != loadedClustersMap.get(cl.getId()).size()){
+                throw new IOException("Cluster " + cl.getId() + " has different size than the number of alignment lines in file " + fileName);
+            }
+            cl.setAsHasMSA();
+        }
+        return clusters;
+    }
 
-    public static List<Cluster> loadClustersFromCsv(String fileName) throws FileFormatException, IOException {
+    public static List<Cluster> loadClustersFromCsv(String fileName, boolean loadAlignments) throws FileFormatException, IOException{
+        return(loadDataFromCsv(fileName, null, loadAlignments));
+    }
+    
+    private static List<Cluster> loadDataFromCsv(String fileName, Set<Integer> alignmentsToGet, boolean loadAllAlignments) throws FileFormatException, IOException {
         List<Cluster> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
             List<String> header = new ArrayList<>(Arrays.asList(reader.readLine().split(Hammock.csvSeparator)));
@@ -237,11 +263,11 @@ public class FileIOManager {
                 if (id != clusterId) {
                     if (clusterId != -1) {  //it is not the first cluster => add the cluster
                         Cluster cl = new Cluster(sequences, clusterId);
-                        if (alignments.length() >= 1) {
+                        if ((alignments.length() >= 1) && ((loadAllAlignments) || ((alignmentsToGet != null) && (alignmentsToGet.contains(clusterId))))) {
                             FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
                             cl.setAsHasMSA();
-                            result.add(cl);
-                        }
+                        } 
+                        result.add(cl);
                     }
                     clusterId = id;
                     sequences = new ArrayList<>();
@@ -262,8 +288,8 @@ public class FileIOManager {
             if (alignments.length() >= 1) {
                 FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
                 cl.setAsHasMSA();
-                result.add(cl);
             }
+            result.add(cl);
         } catch (NumberFormatException | NullPointerException e) {
             throw new FileFormatException("Error in cluster file: "
                     + fileName + " - wrong format. Original message: ", e);
@@ -283,7 +309,13 @@ public class FileIOManager {
      * @throws IOException
      */
     public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences) throws IOException {
-        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels);
+        Map<Cluster, List<String>> alignmentsMap = getAlignmentsMap(clusters);
+        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels, alignmentsMap);
+    }
+    
+    public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences, Map<Cluster, String> alignmentsMap) throws IOException {
+        Map<Cluster, List<String>> newAlignmentsMap = reformatAlignmentsMap(clusters, alignmentsMap);
+        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels, newAlignmentsMap);
     }
 
     /**
@@ -299,27 +331,65 @@ public class FileIOManager {
      * @throws IOException
      */
     public static void saveClusterSequencesToCsv(Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
-        List<UniqueSequence> sortedSequences = new ArrayList<>();
         List<Cluster> clusterSortedList = new ArrayList<>(clusters);
         Collections.sort(clusterSortedList, Collections.reverseOrder());
-        for (Cluster cl : clusterSortedList) {
+        List<UniqueSequence> sortedSequences = getSortedSequences(clusterSortedList);
+        Map<Cluster, List<String>> alignmentsMap = getAlignmentsMap(clusters);
+        writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels, alignmentsMap);
+    }
+    
+    public static void saveClusterSequencesToCsv(Collection<Cluster> clusters, String filePath, List<String> labels, Map<Cluster, String> alignmentsMap) throws IOException{
+        List<Cluster> clusterSortedList = new ArrayList<>(clusters);
+        Collections.sort(clusterSortedList, Collections.reverseOrder());
+        List<UniqueSequence> sortedSequences = getSortedSequences(clusterSortedList);
+        Map<Cluster, List<String>> newAlignmentsMap = reformatAlignmentsMap(clusters, alignmentsMap);
+        writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels, newAlignmentsMap);
+    }
+    
+    private static List<UniqueSequence> getSortedSequences(List<Cluster> sortedClusters){
+        List<UniqueSequence> sortedSequences = new ArrayList<>();
+        for (Cluster cl : sortedClusters) {
             List<UniqueSequence> sequences = cl.getSequences();
             Collections.sort(sequences, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator()));
             sortedSequences.addAll(sequences);
         }
-        writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels);
+        return(sortedSequences);
+    }
+    
+    private static Map<Cluster, List<String>> reformatAlignmentsMap(Collection<Cluster> clusters, Map<Cluster, String> alignmentsMap){
+        Map<Cluster, List<String>> newAlignmentsMap = new HashMap<>();
+        for (Cluster cl : clusters){
+            if (alignmentsMap.containsKey(cl)){
+                List<String> alignmentLines = new ArrayList<>();
+                String[] split = alignmentsMap.get(cl).split("\n");
+                for (int i = 1; i < split.length; i += 2){ //odd lines only
+                    alignmentLines.add(split[i]);
+                }
+                newAlignmentsMap.put(cl, alignmentLines);
+            }
+        }
+        return(newAlignmentsMap);
+    }
+    
+    private static Map<Cluster, List<String>> getAlignmentsMap(Collection<Cluster> clusters) throws IOException{
+        Map<Cluster, List<String>> alignmentsMap = new HashMap<>();
+        for (Cluster cl : clusters){
+            if (cl.hasMSA()){
+                alignmentsMap.put(cl, FileIOManager.getAlignmentLines(cl));
+            }
+        }
+        return(alignmentsMap);
     }
 
-    private static void writeClusterSequencesToCsv(Collection<UniqueSequence> sequences, Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
+    private static void writeClusterSequencesToCsv(Collection<UniqueSequence> sequences, Collection<Cluster> clusters, String filePath, List<String> labels, Map<Cluster, List<String>> clusterAlignments) throws IOException {
         Map<String, String> msaMap = new HashMap<>();
         Map<String, Cluster> sequenceClusterMap = new HashMap<>();
         for (Cluster cl : clusters) {
             for (UniqueSequence seq : cl.getSequences()) {
                 sequenceClusterMap.put(seq.getSequenceString(), cl);
             }
-            if (cl.hasMSA()) {
-                List<String> msa = FileIOManager.getAlignmentLines(cl);
-                for (String msaLine : msa) {
+            if (clusterAlignments.containsKey(cl)){
+                for(String msaLine : clusterAlignments.get(cl)){
                     msaMap.put(msaLine.replace("-", ""), msaLine);
                 }
             }
@@ -334,7 +404,7 @@ public class FileIOManager {
                 Cluster cluster = sequenceClusterMap.get(seq.getSequenceString());
                 if (cluster != null) {
                     writer.write(cluster.getId() + Hammock.csvSeparator + seq.getSequenceString() + Hammock.csvSeparator);
-                    if (cluster.hasMSA()) {
+                    if (msaMap.containsKey(seq.getSequenceString())) {
                         writer.write(msaMap.get(seq.getSequenceString()) + Hammock.csvSeparator);
                     } else {
                         writer.write("NA" + Hammock.csvSeparator);
@@ -592,7 +662,7 @@ public class FileIOManager {
         return res.toString();
     }
 
-    public static void makeShiftedClusterAlignment(UniqueSequence pivot, List<AligningScorerResult> results, int clusterId) throws IOException {
+    public static String makeShiftedClusterAlignment(UniqueSequence pivot, List<AligningScorerResult> results, int clusterId) throws IOException {
         int maxLengthPlusShift = pivot.getSequence().length; //if everything is shifted to left or short, pivot is the longest
         int minShift = 0;
         for (AligningScorerResult result : results) {
@@ -640,7 +710,7 @@ public class FileIOManager {
                 throw new IOException("Error. Duplicate pivot.");
             }
         }
-        saveStringToFile(alignment.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
+        return(alignment.toString());
     }
 
     /**

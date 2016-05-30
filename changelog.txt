@@ -1,3 +1,13 @@
+----1.0.6----	2016_05_30
+- Bugs causing problems when running in "cluster" mode fixed
+- Hammock now produces (much) less temporal files when running on big datasets
+- More logging and file existence controls
+
+----1.0.5----	2016_03_18
+- Fixed a bug causing problems when "-f tab" is in use
+- Default values of --max_shift and --min_match_states are now guessed on the bases of average sequence length
+- Updates in logging and error messages
+
 ----1.0.4----	2016_01_15
 - all input/output tabular files are now tab-delimited
 - .cl format no longer in use (.cl files are not saved and can't be loaded). Clusters can be loaded in .tsv format

@@ -36,6 +36,7 @@ public class Hammock {
     private static final String parentDir = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
+    private static final String version = "1.0.6";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
@@ -73,7 +74,7 @@ public class Hammock {
     private static String inputType = "fasta";
     private static Integer greedyThreshold = null;
     private static int shiftPenalty = 0;
-    private static int maxShift = 3;
+    private static Integer maxShift = null;
     private static String order = "size";
 
     public static Map<Integer, UniqueSequence> pivotMap = null;                 //this should be solved another way, without global variables
@@ -87,11 +88,11 @@ public class Hammock {
     private static String hhMergeThresholdSequenceString = null;
     private static double[] assignThresholdSequence = null;
     private static double[] overlapThresholdSequence = null;
-    private static double[] hhMergeThresholdSequence = null;
+    private static double[] mergeThresholdSequence = null;
     private static boolean[] fullHHClustering = null;
     public static boolean relativeHHScore = false;
     public static boolean relativeHmmScore = false;
-    public static Integer minMatchStates = 4;
+    public static Integer minMatchStates = null;
     public static Double minIc = 1.2;
     public static Double maxGapProportion = 0.05;
     public static Integer maxAlnLength = null;
@@ -106,44 +107,45 @@ public class Hammock {
     //galaxy
     private static String galaxyFinalClustersCsv;
     private static String galaxyFinalSequenceCsv;
+    private static String galaxyFinalSequenceCsvOrdered;
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
             parseArgs(args);
         } catch (FileFormatException e) {
-            logger.logAndStderr("Error. Probably wrong input file format? Trace: \n");
+            logger.logAndStderr("Error. Probably wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
             logger.logAndStderr(errors.toString());
             if (inGalaxy) {
-                System.err.println("Error. Probably wrong input file format. Trace: \n");
+                System.err.println("Error. Probably wrong input file format. Run with --help for a brief description of command line parameters. Trace: \n");
                 System.err.println(errors.toString());
             }
         } catch (NullPointerException e) {
-            logger.logAndStderr("Error. Maybe wrong input file format? Trace: \n");
+            logger.logAndStderr("Error. Maybe wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
             logger.logAndStderr(errors.toString());
             if (inGalaxy) {
-                System.err.println("Error. Maybe wrong input file format? Trace: \n");
+                System.err.println("Error. Maybe wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
                 System.err.println(errors.toString());
             }
         } catch (DataException e) {
-            logger.logAndStderr("Error. Maybe wrong input file format or wrong set of labels? Trace: \n");
+            logger.logAndStderr("Error. Maybe wrong input file format or wrong set of labels? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
             logger.logAndStderr(errors.toString());
             if (inGalaxy) {
-                System.err.println("Error. Maybe wrong input file format or wrong set of labels? Trace: \n");
+                System.err.println("Error. Maybe wrong input file format or wrong set of labels? Run with --help for a brief description of command line parameters. Trace: \n");
                 System.err.println(errors.toString());
             }
         } catch (Exception e) {
-            logger.logAndStderr("Error. Trace: \n");
+            logger.logAndStderr("Error. Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
             logger.logAndStderr(errors.toString());
             if (inGalaxy) {
-                System.err.println("Error. Trace: \n");
+                System.err.println("Error. Run with --help for a brief description of command line parameters. Trace: \n");
                 System.err.println(errors.toString());
             }
         }
@@ -178,7 +180,6 @@ public class Hammock {
         for (String arg : args) {
             argsString.append(" ").append(arg);
         }
-
         if (args[0].equals("cluster")) {
             fullClustering = false;
             parseCommonArgs(args);
@@ -188,7 +189,8 @@ public class Hammock {
             parseClusteringArgs(args);
             if ((checkCommonArgs()) && (checkClusteringArgs())) {
                 logger.logWithTime("Program started in mode \"cluster\".");
-                logger.logWithoutTime("Parameters: " + "\n" + argsString.toString() + "\n");
+                logger.logWithoutTime("Command-line arguments: " + "\n" + argsString.toString() + "\n");
+                logCommonParams(logger);
                 runClustering();
                 logger.logWithTime("Program successfully ended.");
             }
@@ -204,7 +206,9 @@ public class Hammock {
             parseGreedyArgs(args);
             if (checkCommonArgs() && checkGreedyArgs()) {
                 logger.logWithTime("Program started in mode \"greedy\".");
-                logger.logWithoutTime("Parameters: " + "\n" + argsString.toString() + "\n");
+                logger.logWithoutTime("Command-line arguments: " + "\n" + argsString.toString() + "\n");
+                logCommonParams(logger);
+                logGreedyParams(logger);
                 runGreedyClustering();
                 logger.logWithTime("Program successfully ended.");
             }
@@ -218,7 +222,9 @@ public class Hammock {
             parseClusteringArgs(args);
             if (checkCommonArgs() && checkGreedyArgs() && checkClusteringArgs()) {
                 logger.logWithTime("Program started in mode \"full\".");
-                logger.logWithoutTime("Parameters: " + "\n" + argsString.toString() + "\n");
+                logger.logWithoutTime("Command-line arguments: " + "\n" + argsString.toString() + "\n");
+                logCommonParams(logger);
+                logGreedyParams(logger);
                 runFull();
                 logger.logWithTime("Program successfully ended.");
             }
@@ -233,38 +239,38 @@ public class Hammock {
      */
     private static void displayHelp() {
         System.err.println("HAMMOCK - a Hidden Markov Model based peptide sequence clustering tool. For more details and examples, see manual at : http://www.recamo.cz/en/software/hammock-cluster-peptides/");
-        System.err.println("\nVersion: 1.0.0\n");
+        System.err.println("\nVersion: " + version + "\n");
         System.err.println("\n------MANUAL------\n");
         System.err.println("Synopsis: java -jar Hammock.jar <mode> <param1> <param2> <param3>...");
         System.err.println("\nModes: \n");
         System.err.println("full\ngreedy\ncluster");
         System.err.println("\n------parameters common for all modes------\n");
-        System.err.println("-i, --input <file>   path to input file");
-        System.err.println("-d, --outputDirectory <directory>   directory for all output files");
-        System.err.println("-t, --threads <int>   number of threads to be used");
-        System.err.println("-l, --labels <str,str,str...>  list of sequence labels to use");
+        System.err.println("-i, --input <file>\n\tA path to an input file\n");
+        System.err.println("-d, --outputDirectory <directory>\n\tA directory to store all output files in\n");
+        System.err.println("-t, --threads <int>\n\tThe number of threads to use\n");
+        System.err.println("-l, --labels <str,str,str...>\n\tA list of sequence labels to use\n");
         System.err.println("\n------parameters specific for greedy mode------\n");
-        System.err.println("-f, --file_format <[fasta,tab]>   file format of input file specified by -i");
-        System.err.println("-m, --matrix <file>   path to substitution matrix file");
-        System.err.println("-g, --greedy_threshold 〈int〉   Minimal sequence neede for a sequence to join a cluster");
-        System.err.println("-x, --max_shift 〈int〉   maximal sequence-sequence shift. Nonnegative int");
-        System.err.println("-p, --gap_penalty 〈int〉   penalty for each position of shift. Nonpositive int");
-        System.err.println("-R, --order [size, alphabetic, random]   The order of sequences during greedy clustering");
-        System.err.println("-S, --seed A seed to make random processes deterministic (if -R random is in use)");
+        System.err.println("-f, --file_format <[fasta,tab]>\n\tThe file format of input file specified by -i\n");
+        System.err.println("-m, --matrix <file>\n\tA path to a substitution matrix file\n");
+        System.err.println("-g, --greedy_threshold 〈int\n\tMinimal score needed for a sequence to join a cluster\n");
+        System.err.println("-x, --max_shift 〈int\n\tMaximal sequence-sequence shift. A nonnegative int\n");
+        System.err.println("-p, --gap_penalty 〈int\n\tThe penalty for each position of the sequence-sequence shift. A nonpositive int\n");
+        System.err.println("-R, --order [size, alphabetic, random]\n\tThe order of sequences during greedy clustering\n");
+        System.err.println("-S, --seed\n\tA seed to make random processes deterministic (if -R random is in use)\n");
         System.err.println("\n------parameters specific for cluster mode------\n");
-        System.err.println("-a, --part_threshold <float [0, 1]>   the proportion of clusters to be used as cores");
-        System.err.println("-s, --size_threshold 〈int〉   minimal size of a cluster to be used a core");
-        System.err.println("-c, --count_threshold 〈int〉   the exact number of clusters to be used as cores");
-        System.err.println("-n, --assign_thresholds 〈float,float,float...〉   sequence of threshold values for sequence to cluster assignment");
-        System.err.println("-v, --overlap thresholds 〈float,float,float...〉   sequence of threshold values of min. cluster overlap");
-        System.err.println("-r, --merge thresholds 〈float,float,float...〉   sequence of threshold values for cluster-cluster comparisons");
-        System.err.println("-e, --relative thresholds   All thresholds are expressed as relative to the number of cluster match states");
-        System.err.println("-b, --absolute thresholds   All thresholds are expressed as absolute values");
-        System.err.println("-y, --max gap proportion   Maximal proportion of gaps allowed in a match state");
-        System.err.println("-k, --min ic 〈float〉   Minimal information content allowed for a match state");
-        System.err.println("-j, --max aln length 〈int〉   Maximal length of cluster MSA including gaps");
-        System.err.println("-u, --max inner gaps 〈int〉   Maximal number of inner (non-trailing) gaps in the MSA");
-        System.err.println("-q, --extension increase length〉   Cluster extension step is allowed to increase MSA length");
+        System.err.println("-a, --part_threshold <float [0, 1]>\n\tThe proportion of clusters to be used as cores\n");
+        System.err.println("-s, --size_threshold 〈int\n\tMinimal size of a cluster to be used a core\n");
+        System.err.println("-c, --count_threshold 〈int\n\tThe exact number of clusters to be used as cores\n");
+        System.err.println("-n, --assign_thresholds 〈float,float,float...〉\n\tA sequence of threshold values for sequence to cluster assignment\n");
+        System.err.println("-v, --overlap thresholds 〈float,float,float...\n\tA sequence of threshold values of min. cluster overlap\n");
+        System.err.println("-r, --merge thresholds 〈float,float,float...〉\n\tA sequence of threshold values for cluster-cluster comparisons\n");
+        System.err.println("-e, --relative thresholds\n\tAll thresholds are expressed as relative to the number of cluster match states\n");
+        System.err.println("-b, --absolute thresholds\n\tAll thresholds are expressed as absolute values\n");
+        System.err.println("-y, --max gap proportion\n\tMaximal proportion of gaps allowed in a match state\n");
+        System.err.println("-k, --min ic 〈float〉\n\tMinimal information content allowed in a match state\n");
+        System.err.println("-j, --max aln length 〈int〉\n\tMaximal length of the cluster MSA including gaps\n");
+        System.err.println("-u, --max inner gaps 〈int〉\n\tMaximal number of inner (non-trailing) gaps in the cluster MSA\n");
+        System.err.println("-q, --extension increase length〉\n\tCluster extension step is allowed to increase MSA length\n");
 //        System.err.println("-C, --min_correlation <float [-1, 1]>   minimal correlation of cluster/cluster or cluster/sequence label count profiles");
     }
 
@@ -283,6 +289,8 @@ public class Hammock {
             initialClustersSequencesCsv = Settings.getInstance().getTempDirectory() + separatorChar + "greedy_aligned_cl";
             finalClustersCsv = galaxyFinalClustersCsv;
             finalSequenceCsv = galaxyFinalSequenceCsv;
+            finalSequenceOrderedCsv = galaxyFinalSequenceCsvOrdered;
+
         }
         runGreedyClustering();
         inputFileName = initialClustersSequencesCsv;
@@ -325,6 +333,17 @@ public class Hammock {
 
         logger.logAndStderr(sequences.size() + " unique sequences after non-specified labels filtered out");
         logger.logAndStderr(new Cluster(sequences, -1).size() + " total sequences after non-specified labels fileterd out");
+        int minLength = Integer.MAX_VALUE; 
+        int maxLength = Integer.MIN_VALUE;
+        for (UniqueSequence seq : sequences){
+            if (seq.getSequence().length > maxLength){
+                maxLength = seq.getSequence().length;
+            }
+            if (seq.getSequence().length < minLength){
+                minLength = seq.getSequence().length;
+            }
+        }
+        logger.logAndStderr("Shortest sequence: " + minLength + " AA. Longest sequence: " + maxLength + " AA.");
         initialSequences = new ArrayList<>();
         initialSequences.addAll(sequences);
 
@@ -333,12 +352,17 @@ public class Hammock {
         }
         if (greedyThreshold == null) {
             greedyThreshold = setGreedyThreshold(sequences);
-            logger.logAndStderr("Greedy clustering threshold not set. Setting automatically based on mean sequence length to: " + greedyThreshold);
+            logger.logAndStderr("Greedy clustering threshold not set. Setting automatically to: " + greedyThreshold);
         }
-        int correctMaxShift = setMaxShift(sequences);
-        if (maxShift != correctMaxShift) {
-            maxShift = correctMaxShift;
-            logger.logAndStderr("Setting max shift to " + correctMaxShift + " as the length of the shortest sequence is only " + (correctMaxShift + 1));
+        if (maxShift == null) {
+            maxShift = getMaxShift(sequences);
+            logger.logAndStderr("Max shift not set. Setting automatically to: " + maxShift);
+        } else {
+            int correctMaxShift = checkMaxShift(sequences, maxShift);
+            if (maxShift != correctMaxShift) {
+                maxShift = correctMaxShift;
+                logger.logAndStderr("Setting max shift to " + correctMaxShift + " as the length of the shortest sequence is only " + (correctMaxShift + 1));
+            }
         }
         logger.logAndStderr("Generating input statistics...");
         if (!inGalaxy) {
@@ -348,7 +372,6 @@ public class Hammock {
         ShiftedScorer scorer = new ShiftedScorer(scoringMatrix, shiftPenalty, maxShift);
 
         clusterer = new AligningGreedySequenceClusterer(greedyThreshold);
-
         logger.logAndStderr("Greedy clustering...");
         Long time = System.currentTimeMillis();
         sequences = UniqueSequence.sortSequences(sequences, order);
@@ -356,15 +379,15 @@ public class Hammock {
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
         logger.logAndStderr("Building MSAs...");
+        Map<Cluster, String> alignmentsMap = new HashMap<>();
         for (Cluster cl : clusters) {
-            FileIOManager.makeShiftedClusterAlignment(pivotMap.get(cl.getId()), foundSeqsMap.get(cl.getId()), cl.getId());
-            cl.setAsHasMSA();
+            alignmentsMap.put(cl, FileIOManager.makeShiftedClusterAlignment(pivotMap.get(cl.getId()), foundSeqsMap.get(cl.getId()), cl.getId()));
         }
         logger.logAndStderr("Ready. Total time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Saving results to output files...");
-        FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels);
-        FileIOManager.saveClusterSequencesToCsvOrdered(clusters, initialClustersSequencesOrderedCsv, labels, initialSequences);
+        FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels, alignmentsMap);
         if (!inGalaxy) {
+            FileIOManager.saveClusterSequencesToCsvOrdered(clusters, initialClustersSequencesOrderedCsv, labels, initialSequences, alignmentsMap);
             FileIOManager.SaveClustersToCsv(clusters, initialClusters, labels);
         }
         logger.logAndStderr("Greedy clustering results in: " + initialClusters);
@@ -382,12 +405,12 @@ public class Hammock {
      */
     private static void runClustering() throws IOException, FileFormatException, ExecutionException, Exception {
         logger.logAndStderr("\nLoading clusters...");
-        List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName);
+        List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName, false);
         if (!fullClustering) {
             logger.logAndStderr("Generating input statistics...");
             if (labels == null) {
                 labels = getSortedLabels(FileIOManager.getAllSequences(inClusters));
-            } else{
+            } else {
                 inClusters = filterClustersForLabels(inClusters, labels);
             }
             if (!inGalaxy) {
@@ -399,6 +422,10 @@ public class Hammock {
         if (maxAlnLength == null) {
             maxAlnLength = setMaxAlnLength(inClusters);
             logger.logAndStderr("Maximal alignment length not set. Setting automatically to: " + maxAlnLength);
+        }
+        if (minMatchStates == null) {
+            minMatchStates = setMinMatchStates(inClusters);
+            logger.logAndStderr("Minimal number of match states not set. Setting automatically to: " + minMatchStates);
         }
         if (countThreshold == null) {
             if (sizeThreshold == null && partThreshold == null) {
@@ -428,6 +455,7 @@ public class Hammock {
         }
         Collections.sort(inClusters, Collections.reverseOrder(new ClusterSizeIdComparator()));
         toCluster.addAll(inClusters.subList(0, countThreshold));
+        toCluster = FileIOManager.loadClusterAlignmentsFromFile(toCluster, inputFileName);
         other.addAll(inClusters.subList(countThreshold, inClusters.size()));
         List<UniqueSequence> databaseSequences = new ArrayList<>();
         for (Cluster cl : other) {
@@ -435,7 +463,7 @@ public class Hammock {
         }
         if (assignThresholdSequence == null) {
             assignThresholdSequence = setAssignThresholdSequence(inClusters);
-            logger.logAndStderr("Assign threshold sequence not set. Setting automatically based on mean sequence length to: ");
+            logger.logAndStderr("Assign threshold sequence not set. Setting automatically to: ");
             StringBuilder seq = new StringBuilder();
             for (double th : assignThresholdSequence) {
                 seq.append(th).append(",");
@@ -450,17 +478,17 @@ public class Hammock {
             }
             logger.logAndStderr(seq.toString());
         }
-        if (hhMergeThresholdSequence == null) {
-            hhMergeThresholdSequence = setHhMergeThresholdSequence(inClusters);
+        if (mergeThresholdSequence == null) {
+            mergeThresholdSequence = setHhMergeThresholdSequence(inClusters);
             StringBuilder seq = new StringBuilder();
-            for (double th : hhMergeThresholdSequence) {
+            for (double th : mergeThresholdSequence) {
                 seq.append(th).append(",");
             }
             logger.logAndStderr(seq.toString());
         }
 
         if ((overlapThresholdSequence.length != assignThresholdSequence.length)
-                || (hhMergeThresholdSequence.length != assignThresholdSequence.length)) {
+                || (mergeThresholdSequence.length != assignThresholdSequence.length)) {
             logger.logAndStderr("Error. Merge threshold sequence or overlap threshold "
                     + "sequence do not have the same length as assign threshold sequence.");
             return;
@@ -508,13 +536,16 @@ public class Hammock {
                         initialAlnFolder + separatorChar + cl.getId() + ".aln");
             }
         }
+
+        logClusteringParams(logger);
+
         logger.logAndStderr("\nClustering in " + assignThresholdSequence.length + " rounds...");
         long time = System.currentTimeMillis();
         Scorer scorer = null;
         if (Hammock.filterBeforeAssignment) {
             scorer = new LocalAlignmentScorer(scoringMatrix, gapOpenPenalty, gapExtendPenalty);
         }
-        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, hhMergeThresholdSequence, fullHHClustering, minMatchStates, minIc, Hammock.maxAlnLength, scorer, nThreads);
+        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, mergeThresholdSequence, fullHHClustering, minMatchStates, minIc, Hammock.maxAlnLength, scorer, nThreads);
         List<Cluster> resultingClusters = result.getClusters();
         logger.logAndStderr("\nReady. Clustering time : " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + resultingClusters.size());
@@ -526,7 +557,7 @@ public class Hammock {
         }
         FileIOManager.saveClusterSequencesToCsv(resultingClusters, finalSequenceCsv, labels);
         FileIOManager.SaveClustersToCsv(resultingClusters, finalClustersCsv, labels);
-        if (initialSequences != null){
+        if (initialSequences != null) {
             FileIOManager.saveClusterSequencesToCsvOrdered(resultingClusters, finalSequenceOrderedCsv, labels, initialSequences);
         }
         if (!inGalaxy) {
@@ -537,7 +568,7 @@ public class Hammock {
         }
         logger.logAndStderr("Results in: " + finalSequenceCsv);
         logger.logAndStderr("and: " + finalClustersCsv);
-        if (initialSequences != null){
+        if (initialSequences != null) {
             logger.logAndStderr("and: " + finalSequenceOrderedCsv);
         }
         if (!inGalaxy) {
@@ -612,6 +643,14 @@ public class Hammock {
             if (args[i].equals("--gos")) {
                 if (args.length > i + 1) {
                     galaxyFinalSequenceCsv = args[i + 1];
+                    i++;
+                    continue;
+                }
+            }
+
+            if (args[i].equals("--goo")) {
+                if (args.length > i + 1) {
+                    galaxyFinalSequenceCsvOrdered = args[i + 1];
                     i++;
                     continue;
                 }
@@ -804,6 +843,16 @@ public class Hammock {
             System.err.println("Error. Parameter input file (-i or --input) missing with no default.");
             return false;
         }
+        
+        if ((workingDirectory != null) && (!inGalaxy)){
+            File file = new File(workingDirectory);
+            if (file.exists()){
+                System.err.println("Error. Output directory exists. Exiting to prevent data loss.");
+                return false;
+            }else{
+                file.mkdir();
+            }
+        }
 
         if ((workingDirectory == null) && (!inGalaxy)) {
             int i = 1;
@@ -820,13 +869,15 @@ public class Hammock {
             workingDirectory = name;
             System.err.println("Creating default output directory: " + name);
         }
-
+        
         if (!inGalaxy) {
             logger = new Logger(workingDirectory + separatorChar + "run.log", false);
         } else {
             logger = new Logger(null, true);
         }
 
+        logger.logAndStderr("\nHammock version " + version + " Run with --help for a brief description of command line parameters.\n");
+        
         if (labelString != null) {
             labels = new ArrayList<>();
             String[] splitLine = labelString.split(",");
@@ -844,7 +895,7 @@ public class Hammock {
         inputStatistics = workingDirectory + separatorChar + "input_statistics.tsv";
 
         threadPool = Executors.newFixedThreadPool(nThreads);
-        scoringMatrix = FileIOManager.loadScoringMatrix(matrixFile);
+        scoringMatrix = FileIOManager.loadScoringMatrix(matrixFile);    
         return true;
     }
 
@@ -870,13 +921,13 @@ public class Hammock {
             System.err.println("Error. Environmental variable \"HHLIB\" not set. Set it so that it contains path to: hhsuite_folder/lib/hh ");
             return false;
         }
-        
-        checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega");
-        checkExternalProgram(Settings.getInstance().getHmmbuildCommand(), Arrays.asList("-h"), "hmmbuild");
-        checkExternalProgram(Settings.getInstance().getHmmsearchCommand(), Arrays.asList("-h"), "hmmsearch");
-        checkExternalProgram(Settings.getInstance().getHhmakeCommand(), Arrays.asList("-h"), "hhmake");
-        checkExternalProgram(Settings.getInstance().getHhsearchCommand(), Arrays.asList("-h"), "hhsearch");
-        
+        if (!inGalaxy) {
+            checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega");
+            checkExternalProgram(Settings.getInstance().getHmmbuildCommand(), Arrays.asList("-h"), "hmmbuild");
+            checkExternalProgram(Settings.getInstance().getHmmsearchCommand(), Arrays.asList("-h"), "hmmsearch");
+            checkExternalProgram(Settings.getInstance().getHhmakeCommand(), Arrays.asList("-h"), "hhmake");
+            checkExternalProgram(Settings.getInstance().getHhsearchCommand(), Arrays.asList("-h"), "hhsearch");
+        }
         if ((partThreshold != null) && ((partThreshold > 1.0) || (partThreshold < 0.0))) {
             System.err.println("Error. Parameter -a (--part_threshold) must be within interval (0.0, 1.0)).");
             return false;
@@ -888,7 +939,7 @@ public class Hammock {
             overlapThresholdSequence = parseThresholdSequence(overlapThresholdSequenceString);
         }
         if (hhMergeThresholdSequenceString != null) {
-            hhMergeThresholdSequence = parseThresholdSequence(hhMergeThresholdSequenceString);
+            mergeThresholdSequence = parseThresholdSequence(hhMergeThresholdSequenceString);
         }
 
         if (minIc > 4.3219280949) {
@@ -929,7 +980,6 @@ public class Hammock {
         return true;
     }
 
-    
     private static boolean checkEnvVariable(String variable) {
         Map<String, String> env = System.getenv();
         return env.containsKey(variable);
@@ -938,12 +988,14 @@ public class Hammock {
     /**
      * Check if external program returns no errors. Returns true if the length
      * of stderr is zero, throws an exception otherwise.
+     *
      * @param command A command to be run
      * @param args all command args
      * @param programName Program name to be displayed in the exception message
-     * @return true, if stderr of the program is of length 0, throws an exception otherwise.
+     * @return true, if stderr of the program is of length 0, throws an
+     * exception otherwise.
      * @throws IOException if length of stderr is not 0.
-     * @throws InterruptedException 
+     * @throws InterruptedException
      */
     private static boolean checkExternalProgram(String command, List<String> args, String programName) throws IOException, InterruptedException {
         ByteArrayOutputStream errorBaos = new ByteArrayOutputStream();
@@ -981,12 +1033,19 @@ public class Hammock {
         return result;
     }
 
-    private static int setMaxShift(Collection<UniqueSequence> sequences) {
+    private static int checkMaxShift(Collection<UniqueSequence> sequences, int maxShift) {
         int minLength = Integer.MAX_VALUE;
         for (UniqueSequence seq : sequences) {
             minLength = Math.min(minLength, seq.getSequence().length);
         }
         return Math.min(maxShift, (minLength - 1));
+    }
+
+    private static int getMaxShift(Collection<UniqueSequence> sequences) {
+        double meanLength = getMeanSequenceLength(sequences);
+        int result = (int) Math.round(meanLength / 4);
+        result = checkMaxShift(sequences, result);
+        return (result);
     }
 
     /**
@@ -998,6 +1057,12 @@ public class Hammock {
     private static int setMaxAlnLength(Collection<Cluster> clusters) {
         double meanLength = getClusterMeanSequenceLength(clusters);
         int result = (int) Math.round(meanLength * 2.0);
+        return result;
+    }
+
+    private static int setMinMatchStates(Collection<Cluster> clusters) {
+        double meanLength = getClusterMeanSequenceLength(clusters);
+        int result = (int) Math.round(meanLength / 3);
         return result;
     }
 
@@ -1030,7 +1095,7 @@ public class Hammock {
     private static double[] setOverlapThresholdSequence(Collection<Cluster> clusters) {
         double[] result;
         if (assignThresholdSequence.length == 3) {
-            logger.logAndStderr("Overlap threshold not set. Setting automatically based on mean sequence length to: ");
+            logger.logAndStderr("Overlap threshold not set. Setting automatically to: ");
             double meanLength = getClusterMeanSequenceLength(clusters);
             if (relativeHHScore) {
                 result = new double[]{meanLength * 0.09, meanLength * 0.075, 0.0};
@@ -1175,15 +1240,15 @@ public class Hammock {
         return nCores;
     }
 
-    private static List<Cluster> filterClustersForLabels(Collection<Cluster> clusters, List<String> labels){
+    private static List<Cluster> filterClustersForLabels(Collection<Cluster> clusters, List<String> labels) throws FileFormatException {
         List<Cluster> result = new ArrayList<>();
-        for (Cluster cl : clusters){
+        for (Cluster cl : clusters) {
             result.add(new Cluster(filterSequencesForLabels(cl.getSequences(), labels), cl.getId()));
         }
-        return(result);
+        return (result);
     }
-    
-    private static List<UniqueSequence> filterSequencesForLabels(Collection<UniqueSequence> sequences, List<String> labels) {
+
+    private static List<UniqueSequence> filterSequencesForLabels(Collection<UniqueSequence> sequences, List<String> labels) throws FileFormatException {
         List<UniqueSequence> result = new ArrayList<>();
         for (UniqueSequence seq : sequences) {
             Map<String, Integer> newLabelsMap = new HashMap<>();
@@ -1236,6 +1301,65 @@ public class Hammock {
             size += cl.getUniqueSize();
         }
         return size;
+    }
+
+    private static void logCommonParams(Logger logger) {
+        StringBuilder message = new StringBuilder();
+        message.append("\nComplete list of input/output parameters: \n");
+        message.append("-i, --input ").append(inputFileName).append("\n");
+        message.append("-d, --output_directory ").append(workingDirectory).append("\n");
+        message.append("-t, --thread ").append(nThreads).append("\n");
+        message.append("-l, --labels ").append(labels).append("\n");
+        message.append("\n");
+        logger.logWithoutTime(message.toString());
+    }
+
+    private static void logGreedyParams(Logger logger) {
+        StringBuilder message = new StringBuilder();
+        message.append("\nComplete list of greedy clustering parameters: \n");
+
+        message.append("-f, --file_format ").append(inputType).append("\n");
+        message.append("-m, --matrix ").append(matrixFile).append("\n");
+        message.append("-g, --greedy_threshold ").append(greedyThreshold).append("\n");
+        message.append("-x, --max_shift ").append(maxShift).append("\n");
+        message.append("-p, --gap_penalty ").append(shiftPenalty).append("\n");
+        message.append("-R, --order ").append(order).append("\n");
+        message.append("-S, --seed ").append(seed).append("\n");
+        message.append("\n");
+        logger.logWithoutTime(message.toString());
+    }
+
+    private static void logClusteringParams(Logger logger) {
+        StringBuilder message = new StringBuilder();
+        message.append("\nComplete list of HMM-based clustering parameters: \n");
+        message.append("-a, --part_threshold ").append(partThreshold).append("\n");
+        message.append("-s, --size_threshold ").append(sizeThreshold).append("\n");
+        message.append("-c, --count_threshold ").append(countThreshold).append("\n");
+        message.append("-n, --assign_thresholds ");
+        for (double th : assignThresholdSequence) {
+            message.append(th).append(",");
+        }
+        message.append("\n");
+        message.append("-v, --overlap_thresholds ");
+        for (double th : overlapThresholdSequence) {
+            message.append(th).append(",");
+        }
+        message.append("\n");
+        message.append("-r, --merge_thresholds ");
+        for (double th : mergeThresholdSequence) {
+            message.append(th).append(",");
+        }
+        message.append("\n");
+        message.append("-e, --relative_thresholds ").append(relativeHmmScore).append("\n");
+        message.append("-b, --absolute_thresholds ").append(!relativeHmmScore).append("\n");
+        message.append("-h, --min_match_states ").append(minMatchStates).append("\n");
+        message.append("-y, --max_gap_proportion ").append(maxGapProportion).append("\n");
+        message.append("-k, --min_ic ").append(minIc).append("\n");
+        message.append("-j, --max_aln_length ").append(maxAlnLength).append("\n");
+        message.append("-u, --max_inner_gaps ").append(maxInnerGaps).append("\n");
+        message.append("-q, --extension_increase_length ").append(extensionIncreaseLength).append("\n");
+        message.append("\n");
+        logger.logWithoutTime(message.toString());
     }
 }
 

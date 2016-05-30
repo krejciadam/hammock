@@ -41,13 +41,18 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
      * @param labelsMap A map representing all sequence's labels.
      *          Key is label, value is count of occurrences of 
      *          this sequence with particular label
+     * @throws hammock.FileFormatException if a wrong amino acid alphabet character is used
      */
-    public UniqueSequence(String sequence, Map<String, Integer> labelsMap){
+    public UniqueSequence(String sequence, Map<String, Integer> labelsMap) throws FileFormatException{
         this.labelsMap = labelsMap;
         this.sequence = new int[sequence.length()];
         String capitalSequence = sequence.toUpperCase();
         for (int i = 0; i < sequence.length(); i++){
-            this.sequence[i] = nameToNum.get(capitalSequence.charAt(i));
+            Integer num = nameToNum.get(capitalSequence.charAt(i));
+            if (num == null){
+                throw new FileFormatException("Error, character " + sequence.charAt(i) + " is not a valid letter from the amino acid alphabet code.");
+            }
+            this.sequence[i] = num;
         }
     }
     

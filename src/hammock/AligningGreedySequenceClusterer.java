@@ -140,7 +140,7 @@ class AlignedListSearchResult implements Comparable<AlignedListSearchResult> {
     public List<UniqueSequence> getOtherSequences() {
         return otherSequences;
     }
-
+ 
     public int getOrder() {
         return order;
     }

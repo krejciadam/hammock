@@ -77,7 +77,12 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         int[] vector = new int[Hammock.getLabels().size()];
         int i = 0;
         for (String label : Hammock.getLabels()) {
-            vector[i] = labelsMap.get(label);
+            Integer count = labelsMap.get(label);
+            if (!(count == null)){
+                vector[i] = labelsMap.get(label);
+            } else{
+                vector[i] = 0;
+            }
             i++;
         }
         return (vector);
