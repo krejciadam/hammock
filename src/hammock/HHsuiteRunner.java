@@ -59,7 +59,7 @@ public class HHsuiteRunner {
      * @param cluster cluster for which hmm will be built
      * @throws Exception
      */
-    public static void builHH(Cluster cluster) throws Exception {
+    public static void buildHH(Cluster cluster) throws Exception {
         Callable callable = new SingleThreadHHmakeRunner(cluster);
         callable.call();
     }
@@ -85,7 +85,7 @@ public class HHsuiteRunner {
 //            parameters.addAll(Settings.getInstance().getReformatParameters());
 //        }
 //        ExternalProcessRunner.runProcess(Settings.getInstance().getReformatCommand(), parameters, null, System.err, "While reformating MSA for cluster " + cluster.getId() + " ");
-        FileIOManager.aln2a2m(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc);
+        FileIOManager.aln2a2m(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
     }
 
     public static int getHHLength(Cluster cl) throws IOException {
@@ -195,9 +195,7 @@ public class HHsuiteRunner {
         List<List<Integer>> gaps = getNewGapPositions(resultLine1, resultLine2, FileIOManager.getFirstA2mSeq(cl1), FileIOManager.getFirstA2mSeq(cl2));
         FileIOManager.mergeAlignedClusters(cl1, cl2, gaps.get(0), gaps.get(1), newId);
         Cluster newCluster = new Cluster(cl1.getSequences(), newId);
-        for (UniqueSequence seq : cl2.getSequences()) {
-            newCluster.insert(seq);
-        }
+        newCluster.insertAll(cl2.getSequences());
         newCluster.setAsHasMSA();
         return newCluster;
     }
@@ -228,7 +226,7 @@ public class HHsuiteRunner {
         int lettersCounted1 = 0;
         int position1 = 0;
         while (lettersCounted1 < startingLetter1) {
-            if (alignedSeq1.charAt(position1) != '.') {
+            if (alignedSeq1.charAt(position1) != '.' && alignedSeq1.charAt(position1) != '-') {
                 lettersCounted1++;
             }
             position1++;
@@ -237,7 +235,7 @@ public class HHsuiteRunner {
         int lettersCounted2 = 0;
         int position2 = 0;
         while (lettersCounted2 < startingLetter2) {
-            if (alignedSeq2.charAt(position2) != '.') {
+            if (alignedSeq2.charAt(position2) != '.' && alignedSeq2.charAt(position2) != '-') {
                 lettersCounted2++;
             }
             position2++;

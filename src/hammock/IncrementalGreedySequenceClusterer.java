@@ -16,7 +16,7 @@ import java.util.concurrent.ExecutorCompletionService;
  *
  * @author Adam Krejci
  */
-public class AligningGreedySequenceClusterer implements SequenceClusterer {
+public class IncrementalGreedySequenceClusterer implements SequenceClusterer {
 
     private final int threshold;
 
@@ -26,7 +26,7 @@ public class AligningGreedySequenceClusterer implements SequenceClusterer {
      * @param threshold Minimum score for a sequence to be added into cluster
      * during greedy clustering.
      */
-    public AligningGreedySequenceClusterer(int threshold) {
+    public IncrementalGreedySequenceClusterer(int threshold) {
         this.threshold = threshold;
     }
 
@@ -44,7 +44,7 @@ public class AligningGreedySequenceClusterer implements SequenceClusterer {
     
     
     @Override
-    public List<Cluster> cluster(List<UniqueSequence> sortedList, ShiftedScorer scorer) throws InterruptedException, ExecutionException {
+    public List<Cluster> cluster(List<UniqueSequence> sortedList, AligningSequenceScorer scorer) throws InterruptedException, ExecutionException {
         int nThreads;
         CompletionService<AligningScorerResult> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
 
@@ -59,7 +59,7 @@ public class AligningGreedySequenceClusterer implements SequenceClusterer {
                 nThreads = 1;
             }
             UniqueSequence comparedSequence = sortedList.get(i);
-            int forOneThread = representativeList.size() / nThreads; //while number division
+            int forOneThread = representativeList.size() / nThreads; //*div* number division
             int j = 1;
             for (; j < nThreads; j++) {
                 List<UniqueSequence> subList = representativeList.subList((j - 1) * forOneThread, j * forOneThread);
@@ -164,10 +164,10 @@ class AlignedListSearchRunner implements Callable<AlignedListSearchResult> {
     private final List<UniqueSequence> sequenceList;
     private final UniqueSequence pivot;
     private final int scoreThreshold;
-    private final ShiftedScorer scorer;
+    private final AligningSequenceScorer scorer;
     private final int order; //pamatujeme si poradi, abychom zabranili nutnosti trideni
 
-    public AlignedListSearchRunner(List<UniqueSequence> phageList, UniqueSequence pivot, int scoreThreshold, ShiftedScorer scorer, int order) {
+    public AlignedListSearchRunner(List<UniqueSequence> phageList, UniqueSequence pivot, int scoreThreshold, AligningSequenceScorer scorer, int order) {
         this.sequenceList = phageList;
         this.pivot = pivot;
         this.scoreThreshold = scoreThreshold;
@@ -194,7 +194,7 @@ class AlignedListSearchRunner implements Callable<AlignedListSearchResult> {
 
 
 /**
- * Helper class for parallel processing. Compares somparedSequence to all sequences
+ * Helper class for parallel processing. Compares comparedSequence to all sequences
  * in databaseList and returns the best hit.
  * @author Adam Krejci
  */
@@ -202,9 +202,9 @@ class AligningBestHitRunner implements Callable<AligningScorerResult> {
 
     private final List<UniqueSequence> databaseList;
     private final UniqueSequence comparedSequence;
-    private final ShiftedScorer scorer;
+    private final AligningSequenceScorer scorer;
 
-    public AligningBestHitRunner(List<UniqueSequence> databaseList, UniqueSequence comparedSequence, ShiftedScorer scorer) {
+    public AligningBestHitRunner(List<UniqueSequence> databaseList, UniqueSequence comparedSequence, AligningSequenceScorer scorer) {
         this.databaseList = databaseList;
         this.comparedSequence = comparedSequence;
         this.scorer = scorer;

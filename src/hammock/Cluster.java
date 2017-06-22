@@ -61,6 +61,12 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         this.hasHMM = false;
         this.hasHH = false;
     }
+    
+    public void insertAll(Collection<UniqueSequence> sequences) throws DataException{
+        for (UniqueSequence seq : sequences){
+            insert(seq);
+        }
+    }
 
     private void updateLabelsMap(UniqueSequence seq) {
         for (Map.Entry<String, Integer> entry : seq.getLabelsMap().entrySet()) {

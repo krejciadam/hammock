@@ -9,7 +9,7 @@ package hammock;
  *
  * @author Adam Krejci
  */
-public class ShiftedScorer implements Scorer {
+public class ShiftedScorer implements AligningSequenceScorer {
 
     private final int[][] scoringMatrix;
     private final int shiftPenalty;
@@ -44,6 +44,7 @@ public class ShiftedScorer implements Scorer {
      * @return
      * @throws hammock.DataException
      */
+    @Override
     public AligningScorerResult scoreWithShift(UniqueSequence seq1, UniqueSequence seq2) throws DataException {
         UniqueSequence shorterSequence;
         UniqueSequence longerSequence;
@@ -94,7 +95,7 @@ public class ShiftedScorer implements Scorer {
     }
 
     @Override
-    public int score(UniqueSequence seq1, UniqueSequence seq2) throws DataException {
+    public int sequenceScore(UniqueSequence seq1, UniqueSequence seq2) throws DataException {
         return scoreWithShift(seq1, seq2).getScore();
     }
 

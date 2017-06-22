@@ -12,11 +12,20 @@ public class HmmsearchSequenceHit implements Comparable<HmmsearchSequenceHit> {
     private final Cluster cluster;
     private final UniqueSequence sequence;
     private final Double score;
+    private final Double evalue;
 
     public HmmsearchSequenceHit(Cluster cluster, UniqueSequence sequence, Double score) {
         this.cluster = cluster;
         this.sequence = sequence;
         this.score = score;
+        this.evalue = null;
+    }
+
+    public HmmsearchSequenceHit(Cluster cluster, UniqueSequence sequence, Double score, Double evalue) {
+        this.cluster = cluster;
+        this.sequence = sequence;
+        this.score = score;
+        this.evalue = evalue;
     }
 
     public Cluster getCluster() {
@@ -29,6 +38,10 @@ public class HmmsearchSequenceHit implements Comparable<HmmsearchSequenceHit> {
 
     public Double getScore() {
         return score;
+    }
+    
+    public Double getEvalue() {
+        return evalue;
     }
 
     @Override

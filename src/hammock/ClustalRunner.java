@@ -65,7 +65,7 @@ public class ClustalRunner {
      * @throws InterruptedException
      * @throws ExecutionException
      */
-    public static ExtendedClusters extendClusters(Map<Cluster, List<HmmsearchSequenceHit>> extensionMap, int minMatchStates, Double minIc, Scorer scorer) throws InterruptedException, ExecutionException, DataException {
+    public static ExtendedClusters extendClusters(Map<Cluster, List<HmmsearchSequenceHit>> extensionMap, int minMatchStates, Double minIc, SequenceScorer scorer) throws InterruptedException, ExecutionException, DataException {
         List<Cluster> resultingClusters = new ArrayList<>();
         List<UniqueSequence> rejectedSequences = new ArrayList<>();
         CompletionService<ExtendClusterResult> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
@@ -82,7 +82,7 @@ public class ClustalRunner {
             if (sequences.size() >= 2) {
                 if (Hammock.filterBeforeAssignment) {
                     for (int i = 1; i < sequences.size(); i++) {
-                        if (scorer.score(sequences.get(0), sequences.get(i)) >= Hammock.sequenceAddThreshold) {
+                        if (scorer.sequenceScore(sequences.get(0), sequences.get(i)) >= Hammock.sequenceAddThreshold) {
                             selectedSequences.add(sequences.get(i));
                         } else {
                             rejectedSequences.add(sequences.get(i));
@@ -215,14 +215,12 @@ class SingleThreadMergeClusterRunner implements Callable<Cluster> {
         HmmerRunner.buildHmm(cl1);  //ensure cluster has HMM
         HmmerRunner.buildHmm(cl2);  //ensure cluster has HMM
         Cluster newCluster = new Cluster(cl1.getSequences(), newId);
-        for (UniqueSequence seq : cl2.getSequences()) {
-            newCluster.insert(seq);
-        }
+        newCluster.insertAll(cl2.getSequences());
         List<String> parameters = new ArrayList<>();
         parameters.add("--profile1");
-        parameters.add(Settings.getInstance().getMsaDirectory() + cl1.getId() + ".aln");
+        parameters.add(Settings.getInstance().getMsaDirectory() + cl1.getId() + ".a2m");
         parameters.add("--profile2");
-        parameters.add(Settings.getInstance().getMsaDirectory() + cl2.getId() + ".aln");
+        parameters.add(Settings.getInstance().getMsaDirectory() + cl2.getId() + ".a2m");
         parameters.add("--is-profile");
         parameters.add("-o");
         parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
@@ -315,7 +313,7 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
                 List<String> newClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
                 if (FileIOManager.checkAlnLength(newClusterLines, maxAlnLength)
                         && FileIOManager.checkLastInnerGaps(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Hammock.maxInnerGaps)
-                        && FileIOManager.checkMatchStatesAndIc(newClusterLines, minMatchStates, minIc, Hammock.maxGapProportion)) {
+                        && FileIOManager.checkMatchStatesAndIc(newClusterLines, minMatchStates, minIc, Hammock.maxGapProportion, Hammock.innerGapsAllowed)) {
                     FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
                     addedSequences.add(insertedSequences.get(i));
                 } else {
@@ -323,9 +321,7 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
                 }
             }
         }
-        for (UniqueSequence sequence : addedSequences) {
-            newCluster.insert(sequence);
-        }
+        newCluster.insertAll(addedSequences);
         newCluster.setAsHasMSA();
         return new ExtendClusterResult(newCluster, rejectedSequences);
     }

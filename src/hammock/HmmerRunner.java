@@ -95,7 +95,7 @@ public class HmmerRunner {
                 if (Hammock.relativeHmmScore){
                     score = (score) / Math.min(sequence.getSequence().length, r.getHmmLength());
                 }
-                hits.add(new HmmsearchSequenceHit(clusterMap.get(r.getHmmId()), sequence, score));
+                hits.add(new HmmsearchSequenceHit(clusterMap.get(r.getHmmId()), sequence, score, r.getEvalue()));
             }
         }
         return hits;
@@ -251,7 +251,8 @@ class SingleThreadHmmsearchRunner implements Callable<List<HmmsearchResult>> {
                 if (!(line.startsWith("#"))) {
                     String[] splitLine = line.split("\\s+"); //split on any number of whitespace characters
                     Double score = Double.parseDouble(splitLine[5]);
-                    HmmsearchResult lineResult = new HmmsearchResult(cluster.getId(), splitLine[0], score, hmmLength);
+                    Double evalue = Double.parseDouble(splitLine[4]);
+                    HmmsearchResult lineResult = new HmmsearchResult(cluster.getId(), splitLine[0], score, hmmLength, evalue);
                     results.add(lineResult);
                 }
             }
@@ -292,12 +293,22 @@ class HmmsearchResult {
     private final String seqId;
     private final double score;
     private final Integer hmmLength;
+    private final Double evalue;
 
     public HmmsearchResult(int hmmId, String seqId, double score, Integer hmmLength) {
         this.hmmId = hmmId;
         this.seqId = seqId;
         this.score = score;
         this.hmmLength = hmmLength;
+        this.evalue = null;
+    }
+
+    public HmmsearchResult(int hmmId, String seqId, double score, Integer hmmLength, Double evalue) {
+        this.hmmId = hmmId;
+        this.seqId = seqId;
+        this.score = score;
+        this.hmmLength = hmmLength;
+        this.evalue = evalue;
     }
 
     public int getHmmId() {
@@ -314,5 +325,9 @@ class HmmsearchResult {
 
     public Integer getHmmLength() {
         return hmmLength;
+    }
+    
+    public Double getEvalue() {
+        return evalue;
     }
 }

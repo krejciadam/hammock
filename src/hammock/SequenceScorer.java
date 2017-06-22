@@ -9,7 +9,7 @@ package hammock;
  *
  * @author Adam Krejci
  */
-public interface Scorer {
+public interface SequenceScorer {
     
-    public int score(UniqueSequence seq1, UniqueSequence seq2) throws DataException;
+    public int sequenceScore(UniqueSequence seq1, UniqueSequence seq2) throws DataException;
 }

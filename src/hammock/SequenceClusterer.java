@@ -5,7 +5,6 @@
 
 package hammock;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -15,6 +14,6 @@ import java.util.concurrent.ExecutionException;
  */
 public interface SequenceClusterer {
     
-    public List<Cluster> cluster(List<UniqueSequence> sequences, ShiftedScorer scorer) throws InterruptedException, ExecutionException;
+    public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer scorer) throws InterruptedException, ExecutionException, DataException;
     
 }

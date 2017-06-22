@@ -2,10 +2,15 @@ package hammock;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.math3.analysis.interpolation.SplineInterpolator;
+import org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction;
+import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 
 /**
  *
@@ -117,9 +122,9 @@ public class Statistics {
      * Not in use now 
      */
     public static boolean checkPerMatchStateKldIncrement(List<String> newClusterLines, List<String> cl1Lines, List<String> cl2Lines) throws IOException, DataException{
-        List<Boolean> newClusterMatchStates = FileIOManager.defineMatchStates(newClusterLines, Hammock.maxGapProportion, Hammock.minIc);
-        List<Boolean> cl1MatchStates = FileIOManager.defineMatchStates(cl1Lines, Hammock.maxGapProportion, Hammock.minIc);
-        List<Boolean> cl2MatchStates = FileIOManager.defineMatchStates(cl2Lines, Hammock.maxGapProportion, Hammock.minIc);
+        List<Boolean> newClusterMatchStates = FileIOManager.defineMatchStates(newClusterLines, Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
+        List<Boolean> cl1MatchStates = FileIOManager.defineMatchStates(cl1Lines, Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
+        List<Boolean> cl2MatchStates = FileIOManager.defineMatchStates(cl2Lines, Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
         List<Double> newClusterKlds = getClusterKlds(newClusterLines, newClusterMatchStates);
         List<Double> cl1Klds = getClusterKlds(cl1Lines, cl1MatchStates);
         List<Double> cl2Klds = getClusterKlds(cl2Lines, cl2MatchStates);
@@ -158,15 +163,15 @@ public class Statistics {
     
     /**
      * Returns the average KLD for a system of clusters
-     * @param folderName path to the folder containing exclusively cluster MSAs
+     * @param alnFiles paths to cluster MSAs
      * @param allPositions all positions are counted. If false, only match states are counted
      * @return
      * @throws IOException
      * @throws DataException 
      */
-    public static double getMeanSystemKld(String folderName, boolean allPositions) throws IOException, DataException{
+    public static double getMeanSystemKld(Collection<String> alnFiles, boolean allPositions) throws IOException, DataException{
         List<Double> klds = new ArrayList<>();
-        for (String file : FileIOManager.listFolderContents(folderName)){
+        for (String file : alnFiles){
             klds.addAll(getClusterKlds(file, allPositions));
         }
         return(sum(klds) / (klds.size() + 0.0));
@@ -201,7 +206,7 @@ public class Statistics {
                 matchStates.add(Boolean.TRUE);
             }
         } else{
-            matchStates = FileIOManager.defineMatchStates(alignmentLines, Hammock.maxGapProportion, Hammock.minIc);
+            matchStates = FileIOManager.defineMatchStates(alignmentLines, Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
         }
         return(getClusterKlds(alignmentLines, matchStates));
     }
@@ -313,12 +318,139 @@ public class Statistics {
      * @param list the list to be summed
      * @return 
      */
-    public static double sum(List<Double> list){
+    public static double sum(Collection<Double> list){
         double result = 0.0;
         for (Double d : list){
             result += d;
         }
         return(result);
     }
+    
+    /**
+     * Returns a list of values representing the x-axis.
+     * Sorths from largest to smallest
+     * @param scores
+     * @return 
+     */
+    private static List<Double> getXAxis(List<Double> scores){
+        DescriptiveStatistics stats = new DescriptiveStatistics();
+        for (Double d : scores){
+            stats.addValue(d);
+        }
+        List<Double> result = new ArrayList<>();
+        long min = Math.round(stats.getMin() * 10.0);
+        long max = Math.round(stats.getMax() * 10.0);
+        for (long i = max; i >= min; i -= 1){
+            result.add((i + 0.0) / 10);
+        }
+        return(result);
+    }
+    
+    /**
+     * Histogram
+     * @param axis
+     * @param scores
+     * @return 
+     */
+    private static List<Double> toHist(List<Double> axis, List<Double> scores){
+        List<Double> result = new ArrayList<>();
+        for (Double x : axis){
+            result.add(Collections.frequency(scores, x) + 0.0);
+        }
+        return(result);
+    }
+    
+    /**
+     * Simple moving-average smoothing
+     * @param vector
+     * @param bandwidth
+     * @return 
+     */
+    private static List<Double> smooth(List<Double> vector, int bandwidth){
+        List<Double> result = new ArrayList<>();
+        for (int i = 0; i <= (vector.size() - bandwidth); i++){
+            result.add(sum(vector.subList(i, i + bandwidth)) / bandwidth);
+        }
+        return(result);
+    }
+    
+    /**
+     * Returns the automatically derived threshold
+     * @param scores
+     * @param bandwidth
+     * @param tolerance
+     * @param leaveout
+     * @return 
+     */
+    public static double getThreshold(List<Double> scores, int bandwidth, double tolerance, int leaveout){
+        List<Double> axis = getXAxis(scores);
+        List<Double> smoothed = smooth(toHist(axis, scores), bandwidth);
+        List<Double> unitAxis = new ArrayList<>();
+        for (int i = 0; i < smoothed.size(); i++){
+            unitAxis.add(i + 0.0);
+        }
+        List<Double> unitAxisLeaveout = leaveout(unitAxis, leaveout);
+        List<Double> smoothedLeaveout = leaveout(smoothed, leaveout);
+        PolynomialSplineFunction interpolated = interpolate(unitAxisLeaveout, smoothedLeaveout);
+        PolynomialSplineFunction derivative = interpolated.polynomialSplineDerivative();
+        PolynomialSplineFunction derivative2 = derivative.polynomialSplineDerivative();
+        int index = 0;
+        for (double i = 0; i < unitAxisLeaveout.get(unitAxisLeaveout.size() - 1); i += 0.01){
+            double val = derivative.value(i);
+            if (Math.abs(val) <= 0.0025){ //local exterm
+//                System.out.println(i + " " + val);
+                double val2 = derivative2.value(i);
+//                System.out.println(val2);
+                if (val2 > 0.0){ //local minimum
+                    boolean accept = false;
+                    for (double j = 0.01; j <= 10 && j + i < unitAxisLeaveout.get(unitAxisLeaveout.size() - 1); j += 0.01){
+                        if (derivative.value(i + j) >= tolerance){
+                            accept = true;
+                        }
+                    }
+                    if (accept){
+                        index = (int)Math.round(i);
+                        break;
+                    }
+                }
+            }
+        }
+        return(axis.get(index));
+    }
+    
+    /**
+     * Takes only each ?-th member of the list
+     * @param list
+     * @param leaveout
+     * @return 
+     */
+    private static List<Double> leaveout(List<Double> list, int leaveout){
+        List<Double> res = new ArrayList<>();
+        int left = Integer.MAX_VALUE;
+        for (int i = 0; i < list.size(); i++){
+            if (left > leaveout){
+                res.add(list.get(i));
+                left = 0;
+            }
+            left++;
+        }
+        return(res);
+    }
+                
 
+    /**
+     * Returns an interpolation spline.
+     * @param axis
+     * @param values
+     * @return 
+     */
+    private static PolynomialSplineFunction interpolate(List<Double> axis, List<Double> values){
+        SplineInterpolator interpolator = new SplineInterpolator();
+        Double[] x = new Double[values.size()];
+        x = axis.subList(0, values.size()).toArray(x);
+        Double[] y = new Double[values.size()];
+        y = values.toArray(y);
+        PolynomialSplineFunction interpolated = interpolator.interpolate(ArrayUtils.toPrimitive(x), ArrayUtils.toPrimitive(y));
+        return(interpolated);
+    }    
 }

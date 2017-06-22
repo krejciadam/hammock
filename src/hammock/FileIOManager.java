@@ -107,6 +107,22 @@ public class FileIOManager {
         }
         return (result);
     }
+    
+    public static Map<Double, Double> loadEmpiricalProbabs(String path) throws IOException{
+        Map<Double, Double> result = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] splitLine = line.split("\t");
+                Double score = Double.parseDouble(splitLine[0]);
+                Double probab = Double.parseDouble(splitLine[1]);
+                result.put(score, probab);
+            }
+        } catch (IOException e) {
+            throw new IOException(e);
+        }
+        return(result);
+    }
 
     /**
      *     /**
@@ -346,6 +362,57 @@ public class FileIOManager {
         writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels, newAlignmentsMap);
     }
     
+
+    private static double empiricalProbab(double score, double minScore, double maxScore, Map<Double, Double> empiricalProbabs){
+        if (score < minScore){
+            return 1;
+        }
+        if (score > maxScore){
+            return 0;
+        }
+        return(empiricalProbabs.get((double) Math.round(score * 10) / 10)); //one decimal place rounding
+    }
+    
+    public static void saveHmmsearchHitsToCsv(Collection<HmmsearchSequenceHit> hits, String filePath, String empiricalProbabsFile, int clusterCount, int sequenceCount) throws IOException{
+        Map<Double, Double> empiricalProbabs = null;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+        
+        if (empiricalProbabsFile != null){
+            empiricalProbabs = FileIOManager.loadEmpiricalProbabs(empiricalProbabsFile);
+            for (Double score : empiricalProbabs.keySet()){
+                if (score > max){
+                    max = score;
+                }
+                if (score < min){
+                    min = score;
+                }
+            }
+        }
+        List<HmmsearchSequenceHit> hitList = new ArrayList<>(hits) ;
+        Collections.sort(hitList, Collections.reverseOrder());
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            writer.write("cluster_id" + Hammock.csvSeparator 
+                    + "main_sequence" + Hammock.csvSeparator 
+                    + "found_sequence" + Hammock.csvSeparator 
+                    + "score");
+            if (empiricalProbabs != null){
+                writer.write(Hammock.csvSeparator + "evalue_empirical");
+            }
+            writer.write("\n");
+            for(HmmsearchSequenceHit hit : hitList){
+                writer.write(hit.getCluster().getId() + Hammock.csvSeparator 
+                        + hit.getCluster().getSequences().get(0).getSequenceString() + Hammock.csvSeparator 
+                        + hit.getSequence().getSequenceString() + Hammock.csvSeparator 
+                        + hit.getScore());
+                if (empiricalProbabs != null){
+                    writer.write(Hammock.csvSeparator + empiricalProbab(hit.getScore(), min, max, empiricalProbabs) * clusterCount * sequenceCount);
+                }
+                writer.write("\n");
+            }
+        }
+    }
+    
     private static List<UniqueSequence> getSortedSequences(List<Cluster> sortedClusters){
         List<UniqueSequence> sortedSequences = new ArrayList<>();
         for (Cluster cl : sortedClusters) {
@@ -379,6 +446,27 @@ public class FileIOManager {
             }
         }
         return(alignmentsMap);
+    }
+    
+    public static void saveUniqueSequencesToCsv(Collection<UniqueSequence> sequences, String filePath, List<String> labels) throws IOException{
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            writer.write("sequence");
+            for (String label : labels) {
+                writer.write(Hammock.csvSeparator + label);
+            }
+            writer.newLine();
+            for (UniqueSequence seq : sequences){
+                writer.write(seq.getSequenceString());
+                for (String label : labels) {
+                    Integer count = seq.getLabelsMap().get(label);
+                    if (count == null){
+                        count = 0;
+                    }
+                    writer.write(Hammock.csvSeparator + count);
+                }
+                writer.newLine();
+            }
+        }
     }
 
     private static void writeClusterSequencesToCsv(Collection<UniqueSequence> sequences, Collection<Cluster> clusters, String filePath, List<String> labels, Map<Cluster, List<String>> clusterAlignments) throws IOException {
@@ -970,8 +1058,8 @@ public class FileIOManager {
      * @return
      * @throws IOException
      */
-    public static boolean checkMatchStatesAndIc(List<String> alignmentLines, int minMatchStates, double minIc, double maxGapProportion) throws IOException {
-        List<Boolean> matchStates = defineMatchStates(alignmentLines, maxGapProportion, minIc);
+    public static boolean checkMatchStatesAndIc(List<String> alignmentLines, int minMatchStates, double minIc, double maxGapProportion, boolean allowInnerGaps) throws IOException {
+        List<Boolean> matchStates = defineMatchStates(alignmentLines, maxGapProportion, minIc, allowInnerGaps);
         int count = 0;
         for (boolean position : matchStates) {
             if (position) {
@@ -1033,16 +1121,36 @@ public class FileIOManager {
         return (positionLetterCounts);
     }
 
-    public static List<Boolean> defineMatchStates(List<String> alignmentLines, double maxGapProportion, double minIc) throws IOException {
+    public static List<Boolean> defineMatchStates(List<String> alignmentLines, double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException {
         List<Double> informationContents = getInformationContents(alignmentLines, maxGapProportion);
         List<Boolean> result = new ArrayList<>();
-        for (Double ic : informationContents) {
-            if (ic >= minIc) {
-                result.add(true);
-            } else {
-                result.add(false);
+        
+        if (allowInnerGaps){
+            for (Double ic : informationContents) {
+                if (ic >= minIc) {
+                    result.add(true);
+                } else {
+                    result.add(false);
+                }
+            }
+        } else{
+            int minPosition = informationContents.size() + 1;
+            int maxPosition = -1;
+            for (int i = 0; i < informationContents.size(); i++){
+                if (informationContents.get(i) >= minIc){
+                    if (i < minPosition){minPosition = i;}
+                    if (i > maxPosition){maxPosition = i;}
+                }
+            }
+            for (int i = 0; i < informationContents.size(); i++){
+                if ((i >= minPosition) && (i <= maxPosition)){
+                    result.add(Boolean.TRUE);
+                } else{
+                    result.add(Boolean.FALSE);
+                }
             }
         }
+
         return result;
     }
 
@@ -1058,8 +1166,8 @@ public class FileIOManager {
      * @throws IOException
      * @throws DataException
      */
-    public static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc) throws IOException, DataException {
-        List<Boolean> matchStates = defineMatchStates(getAlignmentLines(inFile), maxGapProportion, minIc);
+    public static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException, DataException {
+        List<Boolean> matchStates = defineMatchStates(getAlignmentLines(inFile), maxGapProportion, minIc, allowInnerGaps);
         try (BufferedReader reader = new BufferedReader(new FileReader(inFile)); BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             String line;
             while ((line = reader.readLine()) != null) {

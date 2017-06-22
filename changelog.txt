@@ -1,3 +1,16 @@
+----1.1.0---- 2017_06_22
+- New initial clustering algorithm (clinkage) for small datasets (up to 10 000 unique sequences by default) 
+- New initial clustering algorithm (greedy clinkage) for large datasets (over 10 000 unique sequences by default). The original greedy clustering algorithm has been removed.
+- Cluster cores now can be selected on the basis of their unique size (the -U, --unique switch)
+- New options: --min_correlation --min_cluster_size --min_cluster_unique_size
+- Options -a, --part_threshold and -s, --size_threshold are now considered deprecated due to confusion. Nevertheless, they will still work.
+- New order option for greedy incremental clustering: --order input
+- When max_inner_gaps == 0, HMM match states are defined as ALL the msa positions between the lefmost and the rightmost position satisfying min_ic and max_gap_proportion, even if some of the positions in between do not satisfy these two. Defaut score thresholds were slightly adjusted (increased) to reflect this
+- When there are no database sequences left, Hammock continues to cluster by only performing cluster merging steps
+- KLD is now calculated even when there are clusters only containing a single unique sequence (these are omitted form KLD calculation)
+- Fixed a bug rarely causing incorrect alignments when sequences of variable lengts are present in the dataset
+- From now on, we prefer questions and notes to be directed to GitHub: (https://github.com/hammock-dev/hammock/issues/)
+
 ----1.0.6----	2016_05_30
 - Bugs causing problems when running in "cluster" mode fixed
 - Hammock now produces (much) less temporal files when running on big datasets

@@ -7,7 +7,7 @@ package hammock;
  *
  * @author Adam Krejci
  */
-public class LocalAlignmentScorer implements Scorer {
+public class LocalAlignmentScorer implements SequenceScorer {
 
     private final int[][] scoringMatrix;
     private final int gapOpenPenalty;
@@ -24,7 +24,7 @@ public class LocalAlignmentScorer implements Scorer {
     }
 
     @Override
-    public int score(UniqueSequence seq1, UniqueSequence seq2) throws DataException {
+    public int sequenceScore(UniqueSequence seq1, UniqueSequence seq2) throws DataException {
         return(fillDynamicMatrices(seq1, seq2).maxScore);
     }
 

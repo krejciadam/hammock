@@ -187,13 +187,45 @@ public class UniqueSequence implements Sizeable, Comparable<UniqueSequence>{
             case "random":
                 Collections.shuffle(sortedList, Hammock.random);
                 break;
+            case "input":
+                break;
             
             default:
-                throw new DataException("Incorrect sequence order defined. Use one of: size, alphabetic, random");
+                List<String> labels = Hammock.getLabels();
+                if (!(labels.contains(order))){
+                    throw new DataException("Incorrect sequence order defined. Use one of: size, alphabetic, random, input, or a label");
+                }
+                Collections.sort(sortedList, Collections.reverseOrder(new UniqueSequenceSizeAlphabeticComparator())); //secondary sorting by global occurrence + alphabetic
+                Collections.sort(sortedList, Collections.reverseOrder(UniqueSequence.getLabelComparator(order)));
+                
         }
         return sortedList;
     }    
+    
+    public static Comparator<UniqueSequence> getLabelComparator(String label){
+        return new LabelComparator(label);
+    }
+      
+    private static class LabelComparator implements Comparator<UniqueSequence>{
+        String label;
+
+        public LabelComparator(String label) {
+            this.label = label;
+        }
         
+        @Override
+        public int compare(UniqueSequence o1, UniqueSequence o2) {
+            Integer count1 = o1.getLabelsMap().get(label);
+            Integer count2 = o2.getLabelsMap().get(label);
+            if (count1 == null){
+                count1 = 0;
+            }
+            if (count2 == null){
+                count2 = 0;
+            }
+            return(count1 - count2);
+        }
+    }
         
 }
 
