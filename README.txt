@@ -4,6 +4,8 @@ Runnable version, manual and more info at: http://www.recamo.cz/en/software/hamm
 
 Galaxy version at: https://toolshed.g2.bx.psu.edu/view/hammock/hammock
 
+Publication: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4681989/
+
 
 BUILDING FROM SOURCE
 
