@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutorCompletionService;
  */
 public class ClustalRunner {
 
+    //Refactor note: Should not modify clusters and return void. Shoud return a new collection of modified clusters
     /**
      * Generates multiple alignment files for a collection of clusters using
      * Clustal Omega. MSA files will be written in appropriate directory
@@ -312,8 +313,8 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
                 ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ");
                 List<String> newClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
                 if (FileIOManager.checkAlnLength(newClusterLines, maxAlnLength)
-                        && FileIOManager.checkLastInnerGaps(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Hammock.maxInnerGaps)
-                        && FileIOManager.checkMatchStatesAndIc(newClusterLines, minMatchStates, minIc, Hammock.maxGapProportion, Hammock.innerGapsAllowed)) {
+                        && FileIOManager.checkBothInnerGaps(newClusterLines, Hammock.maxInnerGaps)
+                        && FileIOManager.checkConservedStates(newClusterLines, minMatchStates, minIc, Hammock.maxGapProportion)) {
                     FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln", Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
                     addedSequences.add(insertedSequences.get(i));
                 } else {

@@ -1,3 +1,11 @@
+---1.1.1--- 2017_10_02
+- parameter -h, --min_match_states has been renamed to -h, --min_conserved_positions, which better describes a slight change in its meaning. --min_conserved_positions defines the minimal number of each cluster's MSA positions that satisfy both -k, --min_ic and -y, --max_gap_proportion. The thing is, since version 1.1.0, HMM match states are defined as ALL the MSA positions between the leftmost and the rightmost conserved position (if inner gaps are not allowed). So in theory, with 2 conserved positions, there can be more than 2 match states. Since version 1.1.1, parameter -h, --min_conserved_positions defines the minimum nuber of conserved positions, not match states.
+- New parameter -as --additional_sequences is available in "cluster" mode. It accepts a path to a fasta file containing sequences that will be added to the sequence pool during clustering. This is useful e.g. when additional rounds of cluster extension are required after a Hammock run has finished. In such a case, -as can be used to include "final_remaining_sequences.fa" file in a convenient way.  
+- -n, --assign_thresholds and -r, --merge_thresholds sequences now may contain negative values. When a negative value is found, the corresponding extension/merging step is skipped. 
+- Hammock now produces less temporal files. The difference is significant for very large datasets.
+- In "cluster" mode, input files containing unaligned clusters are now allowed.
+- Some low priority bugs fixed
+
 ----1.1.0---- 2017_06_22
 - New initial clustering algorithm (clinkage) for small datasets (up to 10 000 unique sequences by default) 
 - New initial clustering algorithm (greedy clinkage) for large datasets (over 10 000 unique sequences by default). The original greedy clustering algorithm has been removed.

@@ -86,68 +86,77 @@ public class IterativeHmmClusterer {
             Hammock.logger.logAndStderr(currentState.getClusters().size() + " clusters remaining");
             Set<Set<Cluster>> mergeGroups;
             Set<UnorderedPair<Cluster>> overlapingPairs = null;
-            if (currentState.getDatabaseSequences().size() > 0){
+            if ((currentState.getDatabaseSequences().size() > 0) && (hmmsearchAssignThreshold > 0)) {
                 Hammock.logger.logAndStderr("Building hmms and searching database...");
                 List<HmmsearchSequenceHit> hits = HmmerRunner.searchWithHmms(currentState.getClusters(), currentState.getDatabaseSequences());
                 overlapingPairs = getOverlapingPairs(hits, hmmsearchOverlapThreshold); //must be before assignToClusters, because assignToClusters changes clusters
                 Hammock.logger.logAndStderr("Extending clusters...");
                 currentState = assignToClusters(currentState.getClusters(), hits, currentState.getDatabaseSequences(), hmmsearchAssignThreshold, scorer); //changes clusters
-            } else{
-                Hammock.logger.logAndStderr("No database sequences remaining. Skipping cluster extension step. Running full cluster merging routine.");
+            } else {
+                if (hmmsearchAssignThreshold < 0) {
+                    Hammock.logger.logAndStderr("Negative assign threshold");
+                } else {
+                    Hammock.logger.logAndStderr("No database sequences remaining.");
+                }
+                Hammock.logger.logAndStderr("Skipping cluster extension step. Running full cluster merging routine.");
                 fullHHClustering[round] = true;
             }
-            Set<Cluster> currentClusters = new HashSet<>();
-            if (fullHHClustering[round] == false) {
-                mergeGroups = IterativeHmmClusterer.getMergeGroups(overlapingPairs);
-                currentClusters = new HashSet<>(currentState.getClusters());
-                for (UnorderedPair<Cluster> pair : overlapingPairs) {
-                    currentClusters.remove(pair.getBigger());
-                    currentClusters.remove(pair.getSmaller());
-                }
-            Hammock.logger.logAndStderr(overlapingPairs.size() + " cluster pairs to check and merge.");
-            Hammock.logger.logAndStderr("Merging clusters from " + mergeGroups.size() + " groups...");
+            if (hhClusteringThreshold < 0) {
+                Hammock.logger.logAndStderr("Negative merge threshold. Skipping cluster merging step.");
             } else {
-                currentClusters = new HashSet<>();
-                mergeGroups = new HashSet<>();
-                mergeGroups.add(new HashSet<>(currentState.getClusters()));
-                Hammock.logger.logAndStderr("Overlap threshold is 0. Running full cluster merging.");
-            }
-
-            String path;
-            File dir;
-            if (!Hammock.inGalaxy) {
-                path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_assignment";
-                dir = new File(path);
-                dir.mkdir();
-                for (Cluster cl : currentState.getClusters()) {
-                    FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", path + "/" + cl.getId() + ".aln");
+                Set<Cluster> currentClusters = new HashSet<>();
+                if (fullHHClustering[round] == false) {
+                    mergeGroups = IterativeHmmClusterer.getMergeGroups(overlapingPairs);
+                    currentClusters = new HashSet<>(currentState.getClusters());
+                    for (UnorderedPair<Cluster> pair : overlapingPairs) {
+                        currentClusters.remove(pair.getBigger());
+                        currentClusters.remove(pair.getSmaller());
+                    }
+                    Hammock.logger.logAndStderr(overlapingPairs.size() + " cluster pairs to check and merge.");
+                    Hammock.logger.logAndStderr("Merging clusters from " + mergeGroups.size() + " groups...");
+                } else {
+                    currentClusters = new HashSet<>();
+                    mergeGroups = new HashSet<>();
+                    mergeGroups.add(new HashSet<>(currentState.getClusters()));
+                    Hammock.logger.logAndStderr("Overlap threshold is 0. Running full cluster merging.");
                 }
-            }
 
-            /*Build hhs in a well-paralelized fashion (before calling parallelHHClustering)*/
-            Set<Cluster> clustersToMerge = new HashSet<>();
-            for (Set<Cluster> mergeGroup : mergeGroups) {
-                clustersToMerge.addAll(mergeGroup);
-            }
+                String path;
+                File dir;
+                if (!Hammock.inGalaxy) {
+                    path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_assignment";
+                    dir = new File(path);
+                    dir.mkdir();
+                    for (Cluster cl : currentState.getClusters()) {
+                        FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", path + "/" + cl.getId() + ".aln");
+                    }
+                }
 
-            Hammock.logger.logAndStderr("Buiding hhs...");
+                /*Build hhs in a well-paralelized fashion (before calling parallelHHClustering)*/
+                Set<Cluster> clustersToMerge = new HashSet<>();
+                for (Set<Cluster> mergeGroup : mergeGroups) {
+                    clustersToMerge.addAll(mergeGroup);
+                }
 
-            HHsuiteRunner.buildHHs(clustersToMerge, Hammock.threadPool);
+                Hammock.logger.logAndStderr("Buiding hhs...");
 
-            Hammock.logger.logAndStderr("HH clustering...");
+                HHsuiteRunner.buildHHs(clustersToMerge, Hammock.threadPool);
 
-            List<List<Cluster>> clusterLists = (parallelHHClustering(mergeGroups, hhClusteringThreshold, minMatchStates, minIc, maxAlnLength));
-            for (List<Cluster> list : clusterLists) {
-                currentClusters.addAll(list);
-            }
-            currentState = new AssignmentResult(new ArrayList<>(currentClusters), currentState.getDatabaseSequences());
+                Hammock.logger.logAndStderr("HH clustering...");
 
-            if (!Hammock.inGalaxy) {
-                path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_merging";
-                dir = new File(path);
-                dir.mkdir();
-                for (Cluster cl : currentState.getClusters()) {
-                    FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", path + "/" + cl.getId() + ".aln");
+                List<List<Cluster>> clusterLists = (parallelHHClustering(mergeGroups, hhClusteringThreshold, minMatchStates, minIc, maxAlnLength));
+                for (List<Cluster> list : clusterLists) {
+                    currentClusters.addAll(list);
+                }
+                currentState = new AssignmentResult(new ArrayList<>(currentClusters), currentState.getDatabaseSequences());
+
+                if (!Hammock.inGalaxy) {
+                    path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_merging";
+                    dir = new File(path);
+                    dir.mkdir();
+                    for (Cluster cl : currentState.getClusters()) {
+                        FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", path + "/" + cl.getId() + ".aln");
+                    }
                 }
             }
 
@@ -209,17 +218,19 @@ public class IterativeHmmClusterer {
 
         Hammock.logger.logAndStderr(extensionMap.size() + " clusters to be extended");
 
-        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minMatchStates, Hammock.minIc, scorer);
+        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minConservedPositions, Hammock.minIc, scorer);
         newClusters.addAll(extendedClusters.getClusters());
         newClusters.addAll(clusters);
         Hammock.logger.logAndStderr(extendedClusters.getRejectedSequences().size() + " sequences rejected");
         remainingSequences.addAll(extendedClusters.getRejectedSequences());
         return new AssignmentResult(newClusters, remainingSequences);
     }
-    
+
     /**
-     * EXPERIMENTAL! Tries to derive assign threshold automatically based on cluster sequence-size histogram. If it is smaller than scoreThreshold
+     * EXPERIMENTAL! Tries to derive assign threshold automatically based on
+     * cluster sequence-size histogram. If it is smaller than scoreThreshold
      * scoreThreshold is used instead.
+     *
      * @param clusters
      * @param hits
      * @param databaseSequences
@@ -229,7 +240,7 @@ public class IterativeHmmClusterer {
      * @throws IOException
      * @throws InterruptedException
      * @throws ExecutionException
-     * @throws DataException 
+     * @throws DataException
      */
     private static AssignmentResult assignToClusters2(Collection<Cluster> clusters, Collection<HmmsearchSequenceHit> hits, Collection<UniqueSequence> databaseSequences, double scoreThreshold, SequenceScorer scorer) throws IOException, InterruptedException, ExecutionException, DataException {
         Set<UniqueSequence> remainingSequences = new HashSet<>(databaseSequences);
@@ -246,24 +257,24 @@ public class IterativeHmmClusterer {
                 hitMap.put(hit.getSequence(), hit);
             }
         }
-        
+
         Map<Cluster, List<Double>> clusterHitScoreMap = new HashMap<>();
-        for (HmmsearchSequenceHit hit : hits){
+        for (HmmsearchSequenceHit hit : hits) {
             List<Double> scoreList;
-            if (clusterHitScoreMap.containsKey(hit.getCluster())){
+            if (clusterHitScoreMap.containsKey(hit.getCluster())) {
                 scoreList = clusterHitScoreMap.get(hit.getCluster());
                 scoreList.add(hit.getScore());
-            } else{
+            } else {
                 scoreList = new ArrayList<>();
                 scoreList.add(hit.getScore());
             }
             clusterHitScoreMap.put(hit.getCluster(), scoreList);
         }
-        
+
         Map<Cluster, Double> clusterThresholdMap = new HashMap<>();
-        for (Map.Entry<Cluster, List<Double>> entry : clusterHitScoreMap.entrySet()){
+        for (Map.Entry<Cluster, List<Double>> entry : clusterHitScoreMap.entrySet()) {
             Double threshold = Statistics.getThreshold(entry.getValue(), 10, 0.5, 3);
-            if (threshold < scoreThreshold){
+            if (threshold < scoreThreshold) {
                 threshold = scoreThreshold;
             }
             clusterThresholdMap.put(entry.getKey(), threshold);
@@ -276,7 +287,7 @@ public class IterativeHmmClusterer {
         Map<Cluster, List<HmmsearchSequenceHit>> extensionMap = new HashMap<>();
         for (Map.Entry<UniqueSequence, HmmsearchSequenceHit> entry : hitMap.entrySet()) {
             Cluster extendedCluster = entry.getValue().getCluster();
-                if (entry.getValue().getScore() >= clusterThresholdMap.get(entry.getValue().getCluster())){
+            if (entry.getValue().getScore() >= clusterThresholdMap.get(entry.getValue().getCluster())) {
                 List<HmmsearchSequenceHit> insertedSequences = extensionMap.get(extendedCluster);
                 if ((insertedSequences) == null) {
                     insertedSequences = new ArrayList<>();
@@ -289,16 +300,13 @@ public class IterativeHmmClusterer {
 
         Hammock.logger.logAndStderr(extensionMap.size() + " clusters to be extended");
 
-        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minMatchStates, Hammock.minIc, scorer);
+        ExtendedClusters extendedClusters = ClustalRunner.extendClusters(extensionMap, Hammock.minConservedPositions, Hammock.minIc, scorer);
         newClusters.addAll(extendedClusters.getClusters());
         newClusters.addAll(clusters);
         Hammock.logger.logAndStderr(extendedClusters.getRejectedSequences().size() + " sequences rejected");
         remainingSequences.addAll(extendedClusters.getRejectedSequences());
         return new AssignmentResult(newClusters, remainingSequences);
     }
-    
-    
-    
 
     /**
      * Returns all pairs of clusters that have any overlap in their sets of
@@ -471,9 +479,9 @@ public class IterativeHmmClusterer {
                 Cluster tempCluster = HHsuiteRunner.mergeClusters(firstPair, initialClusters.hashCode()); //temp cluster id = hash code. Needed for this thread to have unique temp cluster id
                 //build just a2m instead - this causes an error message
                 HHsuiteRunner.buildHH(tempCluster);
-                List<String> tempClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + tempCluster.getId() + ".aln");
+                List<String> tempClusterLines = FileIOManager.getAlignmentLines(tempCluster);
                 if (Statistics.checkCorrelation(firstPair.getSearchedCluster(), firstPair.getFoundCluster(), Hammock.minCorrelation)
-                        && (FileIOManager.checkMatchStatesAndIc(tempClusterLines, minMatchStates, minIc, Hammock.maxGapProportion, Hammock.innerGapsAllowed))
+                        && (FileIOManager.checkConservedStates(tempClusterLines, minMatchStates, minIc, Hammock.maxGapProportion))
                         && (FileIOManager.checkBothInnerGaps(tempClusterLines, Hammock.maxInnerGaps))
                         && (FileIOManager.checkAlnLength(tempClusterLines, maxAlnLength))) { //satisfies conditions
                     clusterList.remove(firstPair.getBiggerCluster());

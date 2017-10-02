@@ -36,7 +36,7 @@ public class Hammock {
     private static final String parentDir = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
-    private static final String version = "1.1.0";
+    private static final String version = "1.1.1";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
@@ -66,6 +66,9 @@ public class Hammock {
     public static int seed = 42;
     public static final String countMatrixFile = parentDir + separatorChar + "settings" + separatorChar + "misc" + separatorChar + "blosum62.freq_rownorm";
     public static String empiricalProbabsFile = null;
+    
+    //clustering
+    private static String additionalSequencesPath = null;
     
     //full
     private static boolean useGreedy = false;
@@ -99,7 +102,7 @@ public class Hammock {
     private static boolean[] fullHHClustering = null;
     public static boolean relativeHHScore = false;
     public static boolean relativeHmmScore = false;
-    public static Integer minMatchStates = null;
+    public static Integer minConservedPositions = null;
     public static Double minIc = 1.2;
     public static Double maxGapProportion = 0.05;
     public static Integer maxAlnLength = null;
@@ -119,6 +122,7 @@ public class Hammock {
     
     //compare
     private static String databaseFileName = null;
+    private static String secondClustersFileName = null;
     private static String compareResultsCsv = null;
 
     //galaxy
@@ -319,6 +323,7 @@ public class Hammock {
         System.err.println("\n------parameters specific for clinkage mode------\n");
         System.err.println("-L, --cache_size_limit <int>\n\tIncrease for lower memory requirements (but lower speed as well) \n");
         System.err.println("\n------parameters specific for cluster mode------\n");
+        System.err.println("-as, --additional_sequences\n\tA fasta file with sequences to add to the clustering pool\n");
         System.err.println("-U, --unique\n\tCluster cores will be selected on the basis of unique size instead of total size\n");
         //System.err.println("-a, --part_threshold <float [0, 1]>\n\tThe proportion of clusters to be used as cores\n");
         //System.err.println("-s, --size_threshold <int\n\tMinimal size (in unique sequences) of a cluster to be used a core\n");
@@ -328,9 +333,9 @@ public class Hammock {
         System.err.println("-r, --merge_thresholds <float,float,float...>\n\tA sequence of threshold values for cluster-cluster comparisons\n");
         System.err.println("-e, --relative_thresholds\n\tAll thresholds are expressed as relative to the number of cluster match states\n");
         System.err.println("-b, --absolute_thresholds\n\tAll thresholds are expressed as absolute values\n");
-        System.err.println("-y, --max_gap_proportion <float [0, 1]>\n\tMaximal proportion of gaps allowed in a match state\n");
-        System.err.println("-k, --min_ic <float>\n\tMinimal information content allowed in a match state\n");
-        System.err.println("-h, --min_match_states <int>\n\tClusters are not allowed to have less match states\n");
+        System.err.println("-y, --max_gap_proportion <float [0, 1]>\n\tMaximal proportion of gaps allowed in a match state/conserved MSA position\n");
+        System.err.println("-k, --min_ic <float>\n\tMinimal information content allowed in a match state/conserved MSA positon\n");
+        System.err.println("-h, --min_conserved_positions <int>\n\tClusters are not allowed to have less conserved MSA position. A conserved position is by -k, --min_ic and -y, --max_gap_proportion parameters.\n");
         System.err.println("-j, --max_aln_length <int>\n\tMaximal length of the cluster MSA including gaps\n");
         System.err.println("-u, --max inner_gaps <int>\n\tMaximal number of inner (non-trailing) gaps in the cluster MSA\n");
         System.err.println("-q, --extension_increase length>\n\tCluster extension step is allowed to increase MSA length\n");
@@ -411,7 +416,19 @@ public class Hammock {
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
         logger.logAndStderr("Building MSAs...");
-        ClustalRunner.mulitpleAlignment(clusters);
+        List<Cluster> toBuildAlns = new ArrayList<>();
+        List<Cluster> sizeOne = new ArrayList<>();
+        for (Cluster cl : clusters){
+            if (cl.getUniqueSize() > 1){
+                toBuildAlns.add(cl);
+            } else{
+                sizeOne.add(cl);
+            }
+        }
+        ClustalRunner.mulitpleAlignment(toBuildAlns);
+        for (Cluster cl : sizeOne){
+            cl.setAsHasMSA();
+        }
         logger.logAndStderr("Ready. Total time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Saving results to output files...");
         FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels);
@@ -497,7 +514,19 @@ public class Hammock {
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
         logger.logAndStderr("Building MSAs...");
-        ClustalRunner.mulitpleAlignment(clusters);
+        List<Cluster> toBuildAlns = new ArrayList<>();
+        List<Cluster> sizeOne = new ArrayList<>();
+        for (Cluster cl : clusters){
+            if (cl.getUniqueSize() > 1){
+                toBuildAlns.add(cl);
+            } else{
+                sizeOne.add(cl);
+            }
+        }
+        ClustalRunner.mulitpleAlignment(toBuildAlns);
+        for (Cluster cl : sizeOne){
+            cl.setAsHasMSA();
+        }
         logger.logAndStderr("Ready. Total time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Saving results to output files...");
         FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels);
@@ -521,6 +550,11 @@ public class Hammock {
     private static void runClustering() throws IOException, FileFormatException, ExecutionException, Exception {
         logger.logAndStderr("\nLoading clusters...");
         List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName, false);
+        List<UniqueSequence> databaseSequences = new ArrayList<>();
+        if (additionalSequencesPath != null){
+            logger.logAndStderr("Loading additional sequences...");
+            databaseSequences.addAll(FileIOManager.loadUniqueSequencesFromFasta(additionalSequencesPath));
+        }
         if (!fullClustering) {
             logger.logAndStderr("Generating input statistics...");
             if (labels == null) {
@@ -538,9 +572,9 @@ public class Hammock {
             maxAlnLength = setMaxAlnLength(inClusters);
             logger.logAndStderr("Maximal alignment length not set. Setting automatically to: " + maxAlnLength);
         }
-        if (minMatchStates == null) {
-            minMatchStates = setMinMatchStates(inClusters);
-            logger.logAndStderr("Minimal number of match states not set. Setting automatically to: " + minMatchStates);
+        if (minConservedPositions == null) {
+            minConservedPositions = setMinConservedPositions(inClusters);
+            logger.logAndStderr("Minimal number of match states not set. Setting automatically to: " + minConservedPositions);
         }
         if (countThreshold == null) {
             if (sizeThreshold == null && partThreshold == null) {
@@ -574,7 +608,6 @@ public class Hammock {
         toCluster.addAll(inClusters.subList(0, countThreshold));
         toCluster = FileIOManager.loadClusterAlignmentsFromFile(toCluster, inputFileName);
         other.addAll(inClusters.subList(countThreshold, inClusters.size()));
-        List<UniqueSequence> databaseSequences = new ArrayList<>();
         for (Cluster cl : other) {
             databaseSequences.addAll(cl.getSequences());
         }
@@ -662,7 +695,7 @@ public class Hammock {
         if (Hammock.filterBeforeAssignment) {
             scorer = new LocalAlignmentScorer(scoringMatrix, gapOpenPenalty, gapExtendPenalty);
         }
-        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, mergeThresholdSequence, fullHHClustering, minMatchStates, minIc, Hammock.maxAlnLength, scorer, nThreads);
+        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, mergeThresholdSequence, fullHHClustering, minConservedPositions, minIc, Hammock.maxAlnLength, scorer, nThreads);
         List<Cluster> resultingClusters = result.getClusters();
         int origSize = resultingClusters.size();
         resultingClusters = filterClustersForSize(resultingClusters, minClusterSize, minClusterUniqueSize);
@@ -722,25 +755,36 @@ public class Hammock {
      * @throws Exception 
      */
     private static void runCompare() throws IOException, FileFormatException, ExecutionException, Exception {
-        logger.logAndStderr("\nLoading clusters...");
-        List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName, true);
-        int toBuild = 0;
-        for (Cluster cl : inClusters) {
-            if (!(cl.hasMSA())) {
-                toBuild++;
-            }
+        if (secondClustersFileName != null){
+            logger.logAndStderr("\nLoading cluster set 1...");
+            List<Cluster> inClusters1 = FileIOManager.loadClustersFromCsv(inputFileName, true);
+            ensureClusterMsas(inClusters1);
+            logger.logAndStderr("\nLoading cluster set 2...");
+            List<Cluster> inClusters2 = FileIOManager.loadClustersFromCsv(secondClustersFileName, true);
+            ensureClusterMsas(inClusters2);
+            logger.logAndStderr("\nBuilding HHs....");
+            HHsuiteRunner.buildHHs(inClusters1, threadPool);
+            HHsuiteRunner.buildHHs(inClusters2, threadPool);
+            logger.logAndStderr("\nCalculating scores....");
+            List<HHalignHit> hits = HHsuiteRunner.alignAllVsAll(inClusters1, inClusters2, threadPool);
+            logger.logAndStderr("\nWriting results...");
+            FileIOManager.saveHHAlignHitsToCsv(hits, inClusters1, inClusters2, compareResultsCsv);
         }
-        logger.logAndStderr("Loading input sequences...");
-        List<UniqueSequence> sequences = loadInputSequences(databaseFileName, inputType, logger, labels);
-        //List<UniqueSequence> sequences = FileIOManager.loadUniqueSequencesFromFasta(databaseFileName);
         
-        if (toBuild > 0) {
-            logger.logAndStderr("Some cluster cores don't have MSAs. \nBuilding " + toBuild + " MSAs with Clustal...");
-            ClustalRunner.mulitpleAlignment(inClusters);
+        else{
+            logger.logAndStderr("\nLoading clusters...");
+            List<Cluster> inClusters = FileIOManager.loadClustersFromCsv(inputFileName, true);
+            logger.logAndStderr("Loading input sequences...");
+            List<UniqueSequence> sequences = loadInputSequences(databaseFileName, inputType, logger, labels);
+            //List<UniqueSequence> sequences = FileIOManager.loadUniqueSequencesFromFasta(databaseFileName);
+        
+            ensureClusterMsas(inClusters);
+            HmmerRunner.buildHmms(inClusters);
+            List<HmmsearchSequenceHit> hits = HmmerRunner.searchWithHmms(inClusters, sequences);
+            FileIOManager.saveHmmsearchHitsToCsv(hits, compareResultsCsv, empiricalProbabsFile, inClusters.size(), sequences.size());
         }
-        HmmerRunner.buildHmms(inClusters);
-        List<HmmsearchSequenceHit> hits = HmmerRunner.searchWithHmms(inClusters, sequences);
-        FileIOManager.saveHmmsearchHitsToCsv(hits, compareResultsCsv, empiricalProbabsFile, inClusters.size(), sequences.size());
+        logger.logAndStderr("\nReady.");
+        
     }
     
     /**
@@ -1019,11 +1063,17 @@ public class Hammock {
     private static void parseClusteringArgs(String[] args) {
         for (int i = 1; i < args.length; i++) {
             
-            if (args[i].equals("-U") || args[i].equals("--unique")) {
+            if (args[i].equals("-as") || args[i].equals("--additional_sequences")) {
                 if (args.length > i + 1) {
-                    unique = true;
+                    additionalSequencesPath = args[i + 1];
+                    i++;
                     continue;
                 }
+            }
+            
+            if (args[i].equals("-U") || args[i].equals("--unique")) {
+                unique = true;
+                continue;
             }
             
             if (args[i].equals("-s") || args[i].equals("--size_threshold")) {
@@ -1082,11 +1132,11 @@ public class Hammock {
                 relativeHmmScore = true;
             }
 
-            if (args[i].equals("-h") || args[i].equals("--min_match_states")) {
+            if (args[i].equals("-h") || args[i].equals("--min_conserved_positions")) {
                 if (args.length > i + 1) {
-                    minMatchStates = Integer.decode(args[i + 1].trim());
-                    if (minMatchStates <= 0) {
-                        minMatchStates = 0;
+                    minConservedPositions = Integer.decode(args[i + 1].trim());
+                    if (minConservedPositions <= 0) {
+                        minConservedPositions = 0;
                     }
                     i++;
                     continue;
@@ -1175,6 +1225,12 @@ public class Hammock {
             if (args[i].equals("-E") || args[i].equals("--empirical_probabs_file")) {
                 if (args.length > i + 1) {
                     empiricalProbabsFile = args[i + 1];
+                    i++;
+                }
+            }
+            if (args[i].equals("-i2") || args[i].equals("--input2")) {
+                if (args.length > i + 1) {
+                    secondClustersFileName = args[i + 1];
                     i++;
                 }
             }
@@ -1332,6 +1388,20 @@ public class Hammock {
 
         return true;
     }
+    
+    private static void ensureClusterMsas(List<Cluster> clusters) throws ExecutionException, Exception{
+        int toBuild = 0;
+        for (Cluster cl : clusters) {
+            if (!(cl.hasMSA())) {
+                toBuild++;
+            }
+        }
+        if (toBuild > 0) {
+            logger.logAndStderr("Some cluster cores don't have MSAs. \nBuilding " + toBuild + " MSAs with Clustal...");
+            ClustalRunner.mulitpleAlignment(clusters);
+        }
+    }
+    
 
     private static boolean checkEnvVariable(String variable) {
         Map<String, String> env = System.getenv();
@@ -1419,7 +1489,7 @@ public class Hammock {
         return result;
     }
 
-    private static int setMinMatchStates(Collection<Cluster> clusters) {
+    private static int setMinConservedPositions(Collection<Cluster> clusters) {
         double meanLength = getClusterMeanSequenceLength(clusters);
         int result = (int) Math.round(meanLength / 3);
         return result;
@@ -1639,7 +1709,7 @@ public class Hammock {
             if (!cl.hasMSA()) {
                 throw new DataException("Error, can't check match states for clusters without msas");
             }
-            if (!FileIOManager.checkMatchStatesAndIc(FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln"), minMatchStates, minIc, maxGapProportion, innerGapsAllowed)) {
+            if (!FileIOManager.checkConservedStates(FileIOManager.getAlignmentLines(cl), minConservedPositions, minIc, maxGapProportion)) {
                 result.add(cl.getId());
             }
         }
@@ -1736,7 +1806,7 @@ public class Hammock {
         message.append("\n");
         message.append("-e, --relative_thresholds ").append(relativeHmmScore).append("\n");
         message.append("-b, --absolute_thresholds ").append(!relativeHmmScore).append("\n");
-        message.append("-h, --min_match_states ").append(minMatchStates).append("\n");
+        message.append("-h, --min_conserved_positions ").append(minConservedPositions).append("\n");
         message.append("-y, --max_gap_proportion ").append(maxGapProportion).append("\n");
         message.append("-k, --min_ic ").append(minIc).append("\n");
         message.append("-j, --max_aln_length ").append(maxAlnLength).append("\n");

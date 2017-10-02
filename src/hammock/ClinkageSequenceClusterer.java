@@ -61,9 +61,11 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
         CompletionService<NearestCluster> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
         
         while (activeClusters.size() > 1) {
-            System.out.print("\rSequences remaining to process: "
-                    + activeClusters.size() + ", clusters ready: "
-                    + readyClusters.size() + " ");
+            if (!Hammock.inGalaxy){
+                System.err.print("\rSequences remaining to process: "
+                        + activeClusters.size() + ", clusters ready: "
+                        + readyClusters.size() + " ");
+            }
 
             Cluster randomCluster = activeClusters.iterator().next();
             stack.push(randomCluster); // pridame libovolny prvek

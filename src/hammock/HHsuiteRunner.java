@@ -108,7 +108,7 @@ public class HHsuiteRunner {
      *
      * @param alignedCluster Cluster to be compared to all members of
      * searchedClusters
-     * @param searchedClusters All members of this Collection will be compared
+     * @paragetHHLengtm searchedClusters All members of this Collection will be compared
      * to alignedCluster
      * @param threadPool ExecutorService to be used for parallel run
      * @return list of all identified hits. This list may be smaller than the
@@ -156,6 +156,20 @@ public class HHsuiteRunner {
         }
         List<HHalignHit> result = new ArrayList<>();
         for (int i = 0; i < clusterList.size(); i++) {
+            result.addAll(resultPool.take().get());
+        }
+        return result;
+    }
+    
+    public static List<HHalignHit> alignAllVsAll(Collection<Cluster> clusters1, Collection<Cluster> clusters2, ExecutorService threadPool) throws InterruptedException, ExecutionException{
+        List<Cluster> clusterList = new ArrayList<>();
+        clusterList.addAll(clusters2);
+        CompletionService<List<HHalignHit>> resultPool = new ExecutorCompletionService<>(threadPool);
+        for (Cluster cl: clusters1){
+            resultPool.submit(new SingleThreadHHsearchRunner(cl, clusterList, "" + cl.getId()));
+        }
+        List<HHalignHit> result = new ArrayList<>();
+        for (Cluster cl : clusters1){
             result.addAll(resultPool.take().get());
         }
         return result;

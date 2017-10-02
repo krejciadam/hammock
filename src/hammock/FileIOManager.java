@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  *
@@ -233,11 +234,12 @@ public class FileIOManager {
     }
     
     public static List<Cluster> loadClusterAlignmentsFromFile(List<Cluster> clusters, String fileName) throws FileFormatException, IOException{
+        List<Cluster> result = new ArrayList<>();
         Set<Integer> ids = new HashSet<>();
         for (Cluster cl : clusters){
             ids.add(cl.getId());
         }
-        List<Cluster> loadedClusters = loadDataFromCsv(fileName, ids, false);
+        List<Cluster> loadedClusters = loadClusterDetailsFromCsv(fileName, ids, false);
         Map<Integer, Cluster> loadedClustersMap = new HashMap<>();
         for (Cluster cl : loadedClusters){
             loadedClustersMap.put(cl.getId(), cl);
@@ -246,16 +248,16 @@ public class FileIOManager {
             if (cl.size() != loadedClustersMap.get(cl.getId()).size()){
                 throw new IOException("Cluster " + cl.getId() + " has different size than the number of alignment lines in file " + fileName);
             }
-            cl.setAsHasMSA();
+            result.add(loadedClustersMap.get(cl.getId()));
         }
-        return clusters;
+        return result;
     }
 
     public static List<Cluster> loadClustersFromCsv(String fileName, boolean loadAlignments) throws FileFormatException, IOException{
-        return(loadDataFromCsv(fileName, null, loadAlignments));
+        return(loadClusterDetailsFromCsv(fileName, null, loadAlignments));
     }
     
-    private static List<Cluster> loadDataFromCsv(String fileName, Set<Integer> alignmentsToGet, boolean loadAllAlignments) throws FileFormatException, IOException {
+    private static List<Cluster> loadClusterDetailsFromCsv(String fileName, Set<Integer> alignmentsToGet, boolean loadAllAlignments) throws FileFormatException, IOException {
         List<Cluster> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
             List<String> header = new ArrayList<>(Arrays.asList(reader.readLine().split(Hammock.csvSeparator)));
@@ -280,8 +282,11 @@ public class FileIOManager {
                     if (clusterId != -1) {  //it is not the first cluster => add the cluster
                         Cluster cl = new Cluster(sequences, clusterId);
                         if ((alignments.length() >= 1) && ((loadAllAlignments) || ((alignmentsToGet != null) && (alignmentsToGet.contains(clusterId))))) {
-                            FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
-                            cl.setAsHasMSA();
+                            int alignmentLinesCount = (StringUtils.countMatches(alignments, "\n") / 2);
+                            if (alignmentLinesCount == cl.getUniqueSize()){ //alignments with some aligned sequences 'NA' will not be used
+                                FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
+                                cl.setAsHasMSA();
+                            }
                         } 
                         result.add(cl);
                     }
@@ -291,7 +296,10 @@ public class FileIOManager {
                     seqIndex = 0;
                 }
                 if (alignmentIndex != -1) {
-                    alignments.append(">").append(clusterId).append("_").append(seqIndex).append("\n").append(splitLine.get(alignmentIndex)).append("\n");
+                    String alignedSeq = splitLine.get(alignmentIndex);
+                    if (! alignedSeq.equals("NA")){
+                        alignments.append(">").append(clusterId).append("_").append(seqIndex).append("\n").append(alignedSeq).append("\n");
+                    }
                     splitLine.remove(alignmentIndex);
                     seqIndex++;
                 }
@@ -409,6 +417,37 @@ public class FileIOManager {
                     writer.write(Hammock.csvSeparator + empiricalProbab(hit.getScore(), min, max, empiricalProbabs) * clusterCount * sequenceCount);
                 }
                 writer.write("\n");
+            }
+        }
+    }
+    
+    public static void saveHHAlignHitsToCsv(Collection<HHalignHit> hits, Collection<Cluster> clusters1, Collection<Cluster> clusters2, String filePath) throws IOException{
+        Map<Integer, Map<Integer, Double>> scoreMatrix = new HashMap<>();
+        for (HHalignHit hit : hits){
+            int lineId = hit.getSearchedCluster().getId();
+            int columnId = hit.getFoundCluster().getId();
+            Map<Integer, Double> matrixLine;
+            matrixLine = scoreMatrix.get(lineId);
+            if (matrixLine == null){
+                matrixLine = new HashMap<>();
+            }
+            matrixLine.put(columnId, hit.getScore());
+            scoreMatrix.put(lineId, matrixLine);
+        }
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
+            for (Cluster cl2 : clusters2){
+                writer.write(Hammock.csvSeparator + cl2.getId());
+            }
+            for (Cluster cl1 : clusters1){
+                writer.newLine();
+                writer.write("" + cl1.getId());
+                for (Cluster cl2:clusters2){
+                    Double score = scoreMatrix.get(cl1.getId()).get(cl2.getId());
+                    if (score == null){
+                        score = -1.0;
+                    }
+                    writer.write(Hammock.csvSeparator + score);
+                }
             }
         }
     }
@@ -627,8 +666,22 @@ public class FileIOManager {
      * @return
      * @throws IOException
      */
-    private static List<String> getAlignmentLines(Cluster cl) throws IOException {
-        return FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln");
+    public static List<String> getAlignmentLines(Cluster cl) throws IOException {
+        List<String> list = new ArrayList<>(Arrays.asList(getAllAlignmentLines(cl)));
+        List<String> res = new ArrayList<>();
+        for (int i = 1; i < list.size(); i+=2){
+            res.add(list.get(i));
+        }
+        return(res);
+    }
+    
+    private static String[] getAllAlignmentLines(Cluster cl) throws IOException{
+        if (cl.getUniqueSize() > 1){
+            return(fileAsString(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln").split("\n"));
+        }
+        else{
+            return(cl.getFastaString().split("\n"));
+        }
     }
 
     /**
@@ -713,8 +766,8 @@ public class FileIOManager {
      * @throws IOException
      */
     public static void mergeAlignedClusters(Cluster cl1, Cluster cl2, List<Integer> gaps1, List<Integer> gaps2, int newId) throws IOException {
-        String cl1String = insertGapsIntoAlignment(cl1.getId(), gaps1, newId, 1);
-        String cl2String = insertGapsIntoAlignment(cl2.getId(), gaps2, newId, cl1.getUniqueSize() + 1);
+        String cl1String = insertGapsIntoAlignment(cl1, gaps1, newId, 1);
+        String cl2String = insertGapsIntoAlignment(cl2, gaps2, newId, cl1.getUniqueSize() + 1);
         cl1String = cl1String.concat(cl2String);
         saveStringToFile(cl1String, Settings.getInstance().getMsaDirectory() + newId + ".aln");
     }
@@ -731,10 +784,10 @@ public class FileIOManager {
      * @return String reprecenting whole MSA in .aln format
      * @throws IOException
      */
-    private static String insertGapsIntoAlignment(int id, List<Integer> gapPositions, int newId, int startingSequenceId) throws IOException {
+    private static String insertGapsIntoAlignment(Cluster cl, List<Integer> gapPositions, int newId, int startingSequenceId) throws IOException {
         StringBuilder res = new StringBuilder();
         int currentId = startingSequenceId;
-        String[] alnLines = fileAsString(Settings.getInstance().getMsaDirectory() + id + ".aln").split("\n");
+        String[] alnLines = getAllAlignmentLines(cl);
         for (String line : alnLines) {
             if (line.startsWith(">")) {
                 res.append(">").append(newId).append("_").append(currentId).append("\n");
@@ -749,7 +802,7 @@ public class FileIOManager {
         }
         return res.toString();
     }
-
+    
     public static String makeShiftedClusterAlignment(UniqueSequence pivot, List<AligningScorerResult> results, int clusterId) throws IOException {
         int maxLengthPlusShift = pivot.getSequence().length; //if everything is shifted to left or short, pivot is the longest
         int minShift = 0;
@@ -1048,7 +1101,7 @@ public class FileIOManager {
     }
 
     /**
-     * Checks whether msa in "path" has enough match states satisfying maximal
+     * Checks whether msa in "path" has enough conserved states satisfying maximal
      * gap proportion and minimal information content thresholds.
      *
      * @param alignmentLines clusters MSA
@@ -1058,8 +1111,8 @@ public class FileIOManager {
      * @return
      * @throws IOException
      */
-    public static boolean checkMatchStatesAndIc(List<String> alignmentLines, int minMatchStates, double minIc, double maxGapProportion, boolean allowInnerGaps) throws IOException {
-        List<Boolean> matchStates = defineMatchStates(alignmentLines, maxGapProportion, minIc, allowInnerGaps);
+    public static boolean checkConservedStates(List<String> alignmentLines, int minMatchStates, double minIc, double maxGapProportion) throws IOException {
+        List<Boolean> matchStates = defineMatchStates(alignmentLines, maxGapProportion, minIc, true); //true ensures conserved positions, not all match states between them are counted
         int count = 0;
         for (boolean position : matchStates) {
             if (position) {
@@ -1269,20 +1322,6 @@ public class FileIOManager {
 
     public static boolean checkBothInnerGaps(List<String> alignmentLines, int maxGaps) {
         return ((countInnerGaps(alignmentLines.get(0)) <= maxGaps) && (countInnerGaps(alignmentLines.get(alignmentLines.size() - 1)) <= maxGaps));
-    }
-
-    public static boolean checkLastInnerGaps(String inFile, int maxGaps) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(inFile))) {
-            String lastLine = null;
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lastLine = line;
-            }
-            return (countInnerGaps(lastLine) <= maxGaps);
-
-        } catch (IOException e) {
-            throw new IOException(e);
-        }
     }
 
     private static int countInnerGaps(String line) {
