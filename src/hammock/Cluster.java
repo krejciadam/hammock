@@ -1,6 +1,6 @@
 /*
  * Class represents cluster of sequences. Cluster contains any number of unique
- * peptide sequences. Cluster has it's own unique id. Users should guarantee
+ * peptide sequences. Cluster has its own unique id. Users should guarantee
  * id's uniqueness. Cluster may have MSA, HMM and HH (= hmm for HMM-HMM comparison)
  constructed. 
  */
@@ -62,6 +62,11 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         this.hasHH = false;
     }
     
+    /**
+     * Iserts multiple sequences into the cluster.
+     * @param sequences sequences to be inserted
+     * @throws DataException 
+     */
     public void insertAll(Collection<UniqueSequence> sequences) throws DataException{
         for (UniqueSequence seq : sequences){
             insert(seq);
@@ -79,6 +84,10 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
         }
     }
 
+    /**
+     * Returns the vector of label counts. Uses the global labels list from the main class
+     * @return 
+     */
     public int[] getLabelCountVector() {
         int[] vector = new int[Hammock.getLabels().size()];
         int i = 0;
@@ -95,7 +104,7 @@ public class Cluster implements Sizeable, Comparable<Cluster> {
     }
 
     /**
-     * Returns number of unique sequences in this cluster, i.e. every sequence
+     * Returns the number of unique sequences in this cluster, i.e. every sequence
      * present counted as 1, no matter what are the occurrences of this sequence
      * with different labels.
      *

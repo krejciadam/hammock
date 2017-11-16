@@ -323,7 +323,7 @@ public class Hammock {
         System.err.println("\n------parameters specific for clinkage mode------\n");
         System.err.println("-L, --cache_size_limit <int>\n\tIncrease for lower memory requirements (but lower speed as well) \n");
         System.err.println("\n------parameters specific for cluster mode------\n");
-        System.err.println("-as, --additional_sequences\n\tA fasta file with sequences to add to the clustering pool\n");
+        System.err.println("-as, --additional_sequences\n\tA fasta file with sequences to add to the sequence pool\n");
         System.err.println("-U, --unique\n\tCluster cores will be selected on the basis of unique size instead of total size\n");
         //System.err.println("-a, --part_threshold <float [0, 1]>\n\tThe proportion of clusters to be used as cores\n");
         //System.err.println("-s, --size_threshold <int\n\tMinimal size (in unique sequences) of a cluster to be used a core\n");

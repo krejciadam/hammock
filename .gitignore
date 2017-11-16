@@ -7,3 +7,5 @@ dist/
 test/
 nbdist/
 .nb-gradle/
+/manual/*
+!manual/manual.tex

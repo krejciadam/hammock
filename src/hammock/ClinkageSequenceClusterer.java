@@ -1,7 +1,5 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * Clusters sequences using the complete-linkage scheme.
  */
 package hammock;
 
@@ -23,8 +21,8 @@ import java.util.concurrent.ExecutorCompletionService;
 public class ClinkageSequenceClusterer implements SequenceClusterer {
 
 
-    private final int sizeLimit; //do pameti budeme ukladat skore jen pro takto velke
-                                //a vetsi clustery (jen pro CachedCLScorer)
+    private final int sizeLimit; //only put clusters of this size and larger into cache.
+                                //(only applies for CachedCLScorer)
     private final int threshold;
 
     public ClinkageSequenceClusterer(int threshold) {
@@ -42,8 +40,8 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
     public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer sequenceScorer) throws InterruptedException, ExecutionException {
         CachedClusterScorer clusterScorer = new CachedClusterScorer(new ClinkageClusterScorer(sequenceScorer, threshold), sizeLimit);
         ClusterStack<Cluster> stack = new ClusterStack<>();
-        Set<Cluster> readyClusters = new HashSet<>();  //clustery, jejichz nejblizsi soused je za thresholdem budeme vyndavat do tohoto listu
-        int sumCommodity = 0; //Celkova cena vsech zbyvajiich clusteru    
+        Set<Cluster> readyClusters = new HashSet<>();  //a list for clusters whose nearest neighbor is past the threshold
+        int sumCommodity = 0; //Sum of price of all the remaining clusters    
         Set<Cluster> activeClusters = new HashSet<>();
         int currentId = 1;
         for (UniqueSequence seq : sequences){
@@ -53,7 +51,6 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
             currentId ++;
         }
         
-        /* Inicialni zjisteni celkove ceny vsech clusteru */
         for (Cluster cluster : activeClusters) {
             sumCommodity += cluster.getUniqueSize();
         }
@@ -68,11 +65,11 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
             }
 
             Cluster randomCluster = activeClusters.iterator().next();
-            stack.push(randomCluster); // pridame libovolny prvek
+            stack.push(randomCluster); // choose arbitrary cluster
             while (!stack.isEmpty()) {
                 Cluster top = stack.peek();
                 
-                /*Hledani nejblizsiho clusteu*/
+                /*Nearest neighbor finding:*/
                 
                 NearestCluster foundNearestCluster = findNearestClusterParallel(activeClusters, top, clusterScorer, sumCommodity, resultPool);
                 int maxScore = Integer.MIN_VALUE;
@@ -82,26 +79,25 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                     maxScore = foundNearestCluster.getScore();
                 }
                 
-                 /*pokud je skore moc male, odstranime top a jedeme od znova (toto muze nastat jen kdyz je v zasobniku pouze jeden cluster)*/
+                 /*If the score is too low, remove top and start over (this can only happen when there is only one cluster in the stack)*/
                 if (maxScore < threshold) {
                     stack.pop();
                     readyClusters.add(top);
                     activeClusters.remove(top);
-                    sumCommodity -= top.getUniqueSize(); //snizeni celkove ceny aktivnich clusteru
+                    sumCommodity -= top.getUniqueSize();
                     continue;
                 }
                 
-                /*Pokud je cluster nejblizsi topu shodny s 2. clusterem ve stacku
-                 * Vyjmeme oba ze stacku a z aktivnich clusteru, sloucime je a vlozime
-                 slouceny cluster do aktivnich clusteru. activeInputs se nemeni*/
-                if ((stack.size() > 1) && stack.peekSecond().equals(nearestCluster)) { //prima rovnost: muze byt equals?
+                /*The nearest cluster to "top" is the 2nd in the stack
+                 * Remove both from the stack, merge them and put the new into active clusters*/
+                if ((stack.size() > 1) && stack.peekSecond().equals(nearestCluster)) { 
                     currentId++;
                     stack.pop();
                     stack.pop();
                     activeClusters.remove(top);
                     activeClusters.remove(nearestCluster);
                     clusterScorer.join(top, nearestCluster, currentId);
-                    sumCommodity -= (top.getUniqueSize() + nearestCluster.getUniqueSize()); //snizime celkovou cenu o odebrane clustery
+                    sumCommodity -= (top.getUniqueSize() + nearestCluster.getUniqueSize()); 
                     
                     List<UniqueSequence> mergedSeqs = top.getSequences();
                     mergedSeqs.addAll(nearestCluster.getSequences());
@@ -109,21 +105,32 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                     Cluster newTop = new Cluster(mergedSeqs, currentId);
 
                     activeClusters.add(newTop);
-                    sumCommodity += newTop.getUniqueSize(); //zvysime celkovou cenu o nove pridany cluster //??? (-= bylo spatne?)
-                } else { //ve stacku je jen 1 prvek nebo druhy prvek neni roven prvnimu
+                    sumCommodity += newTop.getUniqueSize();
+                } else { //only 1 clyuster in the stack or 2nd is not equal to the closest
                     stack.push(nearestCluster);
                 }
             }
         }
-        /*presuneme posledni cluster do hotovych*/
+        /*The last cluster is also ready*/
         readyClusters.add(activeClusters.iterator().next());
 
-        /*vracime list*/
+        /*return list*/
         List<Cluster> toReturn = new ArrayList<>();
         toReturn.addAll(readyClusters);
         return new ArrayList<>(toReturn);
     }
     
+    /**
+     * Finds the most similar cluster in a collection. 
+     * @param inputClusters the collection to be searched
+     * @param comparedCluster the cluster to find the nearest neighbor of
+     * @param scorer Scoring scheme to use for cluster-cluster comparison
+     * @param sumCommodity Actual sum of cluster calculation price
+     * @param resultPool To be used for parallelization
+     * @return The best scoring cluster and comparison information.
+     * @throws InterruptedException
+     * @throws ExecutionException 
+     */
     public static NearestCluster findNearestClusterParallel(Collection<Cluster> inputClusters, Cluster comparedCluster, ClusterScorer scorer, int sumCommodity, CompletionService<NearestCluster> resultPool) throws InterruptedException, ExecutionException{
         if(inputClusters.isEmpty()){
             return(new NearestCluster(null, Integer.MIN_VALUE));
@@ -138,10 +145,10 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                 comparedCluster, scorer));
             }
                 
-        int maxScore = (Integer.MIN_VALUE + 42); //kdyz je NearestCluster z dalsi casti NULL, ma MIN_VALUE. Takto zajistime, ze takove pripady se rovnou preskoci
+        int maxScore = (Integer.MIN_VALUE + 42); //If NearestCluster from the next part is NULL, it has MIN_VALUE. This way, we find out that these cases are skipped right away.
         NearestCluster nearestCluster = null;
                 
-            /*Ziskani vysledku z jiz dopocitanych vlaken*/
+            /*Results from the threads that already finished*/
         for (Set<Cluster> activeClustersPart : activeClustersParts) {
             NearestCluster currentCluster = resultPool.take().get();     
             
@@ -154,10 +161,10 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                 nearestCluster = currentCluster;
                 maxScore = nearestCluster.getScore();
             } else { //currentScore == maxScore   
-                if ((currentCluster.getCluster().size() > nearestCluster.getCluster().size())) { //kdyz je current cluster null (vyjimecna situace, kdyz byl v 1 vlakne jen top), muzeme preskocit
+                if ((currentCluster.getCluster().size() > nearestCluster.getCluster().size())) { //when currentCluster is null (exceptional situation. Onlu the top was in the thread), we can skip
                     nearestCluster = currentCluster;
                 } else{
-                    if ((currentCluster.getCluster().size() == nearestCluster.getCluster().size()) && (currentCluster.getCluster().getId() < nearestCluster.getCluster().getId())){ //shodna velikost
+                    if ((currentCluster.getCluster().size() == nearestCluster.getCluster().size()) && (currentCluster.getCluster().getId() < nearestCluster.getCluster().getId())){ //equal size
                         nearestCluster = currentCluster;
                     }
                 }
@@ -167,31 +174,27 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
     }
     
     
-        /**
-     * Urcuje, na kolik casti budeme delit praci v zavislosti na aktualnim poctu
-     * zpracovavanych clusteru.
+     /**
+     * Finds how many parts to divide the work into
      *
-     * @param activeClusters Mnozina zpracovavanych clusteru
+     * @param activeClusters 
      * @return
      */
     private static int setNumberOfParts(Collection<Cluster> activeClusters) {
         int currentMaxNumberOfParts = Hammock.nThreads * 4;
-        if (activeClusters.size() < Hammock.nThreads * 4 + 1) {          //Kdyz uz je malo aktivnich clusteru, musime delat i mene casti
+        if (activeClusters.size() < Hammock.nThreads * 4 + 1) {      
             currentMaxNumberOfParts = Math.max(activeClusters.size() - 1, 1);
         }
         return currentMaxNumberOfParts;
     }
     
-        /**
-     * rozdeleni mnoziny aktivnich clusteru na casti (jedna cast pro kazde
-     * vlakno) Snazime se o spravedlive rozdeleni, tedy aby kazde vlakno melo
-     * nejlepe stejnou porci "komodity"
+     /**
+     * Divide the work between threads. Ideally evenly.
      *
-     * @param activeClusters Clustery, ktere budeme rozdelovat na stejne tezke
-     * casti
-     * @param sumCommodity Celkova suma "komodity narocnosti" v activeClusters
-     * @param numberOfParts pocet casti, na ktere budeme praci delit
-     * @return Seznam mnozin clusteru. Kazda mnozina je porca prace pro 1 vlakno
+     * @param activeClusters A collection to divide in the parts
+     * @param sumCommodity Sum of "price" (i.e. expected calculation time)
+     * @param numberOfParts Divide into this many parts
+     * @return Each set in the list is a portion for 1 thread.
      */
     private static List<Set<Cluster>> activeClustersParts(Collection<Cluster> activeClusters,
             long sumCommodity,
@@ -199,7 +202,7 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
 
         List<Set<Cluster>> result = new ArrayList<>();
         Set<Cluster> currentSet = new HashSet<>();
-        long forOneThread = (sumCommodity / numberOfParts) + 1; //celociselne deleni
+        long forOneThread = (sumCommodity / numberOfParts) + 1; //DIV
         long portionCounter = forOneThread;
         for (Cluster clust : activeClusters) {
             currentSet.add(clust);
@@ -211,7 +214,7 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
             }
         }
         if (currentSet.size() > 0) {
-            result.add(currentSet); //pridame i posledni set clusteru
+            result.add(currentSet); 
         }
         return result;
     }
@@ -221,8 +224,8 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
 
 class ClusterStack<E> extends Stack<E> {
     /**
-     * Vrati element, ktery je v zasobniku druhy (prvni pod vrcholem)
-     * @return druhy element zasobniku
+     * Returns the second element in the stack
+     * @return The second stack element
      */
     public E peekSecond() {
         E element = this.get(this.size() - 2);
@@ -232,8 +235,7 @@ class ClusterStack<E> extends Stack<E> {
 
 
 /**
- * Callable pro hledani nejpodobnejsiho clusteru pri vypoctu shlukovaciho
- * algoritmu.
+ * For parallel search for nearest clusters
  */
 class NearestClusterRunner implements Callable<NearestCluster> {
 
@@ -264,19 +266,18 @@ class NearestClusterRunner implements Callable<NearestCluster> {
                     maxScore = score;
                     nearestCluster = i;
                 }
-            } /*else vetev: (score == maxScore) Pokud existuje vice nejblizsich clusteru,
-             * musime se DETERMINISTICKY rozhodnout, ktery prohlasime za
-             * nejblizsi. Bereme pak jednoznacne kriterium velikosti. Pokud i ta je stejna,
-             * usporadani podle klice: atribut id, viz. algoritmus nearest neighbour chain.
+            } /*else: (score == maxScore) If there are more most similar clusters,      SHOULD IMPEMENT A COMPARATOR HERE
+            we need a DETERMINISTIC decision which is the most similar. We use size
+            and id. 
              */ else {
                 if (i != comparedCluster){
                     if (i.size() > nearestCluster.size()){
                         nearestCluster = i;                        
                     } else{
                         if (i.size() < nearestCluster.size()){
-                           //nic - zadna zmena 
+                           //nothing, no change 
                         }
-                        else { //i velikost je stejna, pak se rozhodneme podle id
+                        else { //size is the same as well. Decide using id.
                             if ((i.getId() < nearestCluster.getId())) {
                             nearestCluster = i;
                         }    

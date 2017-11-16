@@ -1,9 +1,6 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+/* Class represents results of one clustering iteration - clusters and remaining
+ * (orphan) database sequences.
  */
-
 package hammock;
 
 import java.util.ArrayList;
@@ -11,9 +8,6 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Class represents results of one clustering iteration - clusters and remaining
- * (orphan) database sequences.
- *
  * @author Adam Krejci
  */
 public class AssignmentResult {

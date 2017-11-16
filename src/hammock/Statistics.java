@@ -18,9 +18,9 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
  */
 public class Statistics {
 
-    private static final double beta = 200;
-    private static final double sigma = 10;
-    private static final double matrixScaleFactor = 2.88539;
+    private static final double BETA = 200;
+    private static final double SIGMA = 10;
+    private static final double MATRIX_SCALE_FACTOR = 2.88539;
 
     private static final double[] backgroundProbabilities = new double[]{0.074, 0.052, 0.045, 0.054, 0.025,
         0.034, 0.054, 0.074, 0.026, 0.068, 0.099, 0.058,
@@ -47,7 +47,7 @@ public class Statistics {
     public static double mean(double[] vector) {
         double mean = 0;
         for (double num : vector) {
-            mean += new Double(num);
+            mean += num;
         }
         mean /= vector.length;
         return mean;
@@ -79,7 +79,10 @@ public class Statistics {
         }
         return res;
     }
-
+    
+    /**
+     * Checks the the correlations of the label vectors of two clusters
+     */
     public static boolean checkCorrelation(Cluster cl1, Cluster cl2, double minCorrelation) {
         if ((Hammock.getLabels().size() < 2) || (minCorrelation == -1.0)) { //one label or any correlation => no control
             return true;
@@ -87,6 +90,9 @@ public class Statistics {
         return (checkCorrelation(cl1.getLabelCountVector(), cl2.getLabelCountVector(), minCorrelation));
     }
 
+    /**
+     * Checks the correlations of label vectors of a cluster and a sequence
+     */
     public static boolean checkCorrelation(Cluster cl, UniqueSequence seq, double minCorrelation) {
         if ((Hammock.getLabels().size() < 2) || (minCorrelation <= -1.0)) { //one label or any correlation => no control
             return true;
@@ -258,8 +264,8 @@ public class Statistics {
                     continue;
                 }
                 Map<Character, Double> correctedFrequencies = getCorrectedFrequencies(countMap);
-                positionKld = Math.log(correctedFrequencies.get(peptideAA) / background.get(peptideAA)) * ((sequenceCount) / (sequenceCount + sigma));
-                positionKld = positionKld * matrixScaleFactor;
+                positionKld = Math.log(correctedFrequencies.get(peptideAA) / background.get(peptideAA)) * ((sequenceCount) / (sequenceCount + SIGMA));
+                positionKld = positionKld * MATRIX_SCALE_FACTOR;
                 result += positionKld;
             }
         }
@@ -287,12 +293,16 @@ public class Statistics {
             } else {
                 fi = 0.0;
             }
-            double Qi = (((sum - 1) * fi) + (beta * gi)) / ((sum - 1) + beta);
+            double Qi = (((sum - 1) * fi) + (BETA * gi)) / ((sum - 1) + BETA);
             result.put(aa, Qi);
         }
         return (result);
     }
     
+    /** NOT in use now
+     * For all the clusters in the folder of cluster MSAs, checks which sequence belongs to 
+     * which cluster.
+     */
     public static List<Integer> getOrderedClusterMemberships(String folder) throws IOException{
         List<String> sequences = new ArrayList<>();
         Map<String, Integer> membershipMap = new HashMap<>();
@@ -328,7 +338,7 @@ public class Statistics {
     
     /**
      * Returns a list of values representing the x-axis.
-     * Sorths from largest to smallest
+     * Sorts from largest to smallest
      * @param scores
      * @return 
      */

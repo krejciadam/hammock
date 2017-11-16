@@ -55,13 +55,13 @@ public class ClustalRunner {
 
     /**
      * into each cluster (key in extensionMap), inserts all appropriate
-     * sequences (corresponing value in extensionmap). Runs clustal to generate
+     * sequences (corresponding value in extension map). Runs clustal to generate
      * new MSA for every such extended cluster. Sequences are inserted into
      * clusters one by one, starting from the most similar ones. Sequences
      * causing a cluster to violate minMatchStates are rejected and returned as
      * rejected sequences in resulting object
      *
-     * @param extensionMap
+     * @param extensionMap 
      * @return
      * @throws InterruptedException
      * @throws ExecutionException
@@ -102,27 +102,6 @@ public class ClustalRunner {
             rejectedSequences.addAll(result.getRejectedSequences());
         }
         return new ExtendedClusters(resultingClusters, rejectedSequences);
-    }
-
-    /**
-     * OBSOLETE. USE HHsuiteRunner.mergeClusters() Merges two clusters,
-     * generates MSA for merged cluster and returns it. Uses the Clustal Omega
-     * routine for profile-profile alignment
-     *
-     * @param cl1 First of cluster to be merged
-     * @param cl2 Second cluster to be merged
-     * @param newId ID of resulting merged cluster
-     * @param nThreads number of computational threads. Will be passed to
-     * Clustal Omega
-     * @return
-     * @throws IOException
-     * @throws InterruptedException
-     * @throws DataException
-     */
-    public static Cluster mergeClusters(Cluster cl1, Cluster cl2, int newId, int nThreads) throws IOException, InterruptedException, DataException, Exception {
-        SingleThreadMergeClusterRunner runner = new SingleThreadMergeClusterRunner(cl1, cl2, newId, nThreads);
-
-        return runner.call();
     }
 }
 
@@ -181,66 +160,6 @@ class SingleThreadClustalRunner implements Callable<Void> {
     }
 }
 
-/**
- * Runs single instance of Clustal's profile alignment routine as external
- * process on single thread.
- *
- * @author Adam Krejci
- */
-class SingleThreadMergeClusterRunner implements Callable<Cluster> {
-
-    private final Cluster cl1;
-    private final Cluster cl2;
-    private final int newId;
-    private final Integer nThreads;
-
-    public SingleThreadMergeClusterRunner(Cluster cl1, Cluster cl2, int newId, Integer nThreads) {
-        this.cl1 = cl1;
-        this.cl2 = cl2;
-        this.newId = newId;
-        this.nThreads = nThreads;
-    }
-
-    /**
-     * Method aligns profiles of two clusters provided and saves resulting
-     * alignment using Clustal Omega. It means no changes are made within
-     * alignments provided, they are only aligned relative to each other.
-     * Sequences in resulting file carry headers with cluster name specified in
-     * newId parameter.
-     *
-     * @return
-     * @throws Exception
-     */
-    @Override
-    public Cluster call() throws Exception {
-        HmmerRunner.buildHmm(cl1);  //ensure cluster has HMM
-        HmmerRunner.buildHmm(cl2);  //ensure cluster has HMM
-        Cluster newCluster = new Cluster(cl1.getSequences(), newId);
-        newCluster.insertAll(cl2.getSequences());
-        List<String> parameters = new ArrayList<>();
-        parameters.add("--profile1");
-        parameters.add(Settings.getInstance().getMsaDirectory() + cl1.getId() + ".a2m");
-        parameters.add("--profile2");
-        parameters.add(Settings.getInstance().getMsaDirectory() + cl2.getId() + ".a2m");
-        parameters.add("--is-profile");
-        parameters.add("-o");
-        parameters.add(Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln");
-        parameters.add("--force");
-        if (nThreads != null) {
-            parameters.add("--threads=" + nThreads);
-        }
-        List<String> clustalParameters = Settings.getInstance().getClustalParameters();
-        if (clustalParameters != null) {
-            parameters.addAll(clustalParameters);
-        }
-        ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while merging clusters " + cl1.getId() + " and " + cl2.getId());
-//        //ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, null, null);
-        FileIOManager.renameFasta(Settings.getInstance().getMsaDirectory() + newCluster.getId() + ".aln", "" + newCluster.getId());
-        newCluster.setAsHasMSA();
-        return newCluster;
-    }
-
-}
 
 /**
  * Runs single instance of Clustal routine for cluster extension as external
@@ -331,7 +250,7 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
 /**
  * Class represents result from extendCluster routine
  *
- * @author akrejci
+ * @author Adam Krejci
  */
 class ExtendClusterResult {
 

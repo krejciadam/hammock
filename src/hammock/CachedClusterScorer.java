@@ -18,11 +18,11 @@ import java.util.Set;
 
 /**
  * Warning! It is needed to call the join() method appropriately when this scorer is used.
- * @author akrejci
+ * @author Adam Krejci
  */
 public class CachedClusterScorer implements ClusterScorer {
     
-    private static Map<Integer, Integer> indexMap; //Index. Kazdemu id clusteru v matici prirazuje index odpovidajiciho radku matice.
+    private static Map<Integer, Integer> indexMap; //Index. The id of each cluster in the matrix gets a matrix x-coordinate.
     private static DynamicMatrix matrix;
     private final int sizeLimit;
     private final ClusterScorer defaultClusterScorer;
@@ -40,7 +40,7 @@ public class CachedClusterScorer implements ClusterScorer {
             return(defaultClusterScorer.clusterScore(cl1, cl2));
         }
         Integer score;
-        if (indexMap.containsKey(cl1.getId())) {    //oba clustery jsou v indexu
+        if (indexMap.containsKey(cl1.getId())) {    //both clusters are in the index
             if (indexMap.containsKey(cl2.getId())) {
                 Integer index1 = indexMap.get(cl1.getId());
                 Integer index2 = indexMap.get(cl2.getId());
@@ -51,22 +51,22 @@ public class CachedClusterScorer implements ClusterScorer {
                     score = defaultClusterScorer.clusterScore(cl1, cl2);
                     matrix.set(index1, index2, score);
                 }
-            } else { //cl1 je a cl2 neni
-                int matrixIndex = matrix.getMatrixIndex(); //priprava noveho radku
+            } else { //cl1 is and cl2 is not
+                int matrixIndex = matrix.getMatrixIndex(); //prepare new row
                 score = defaultClusterScorer.clusterScore(cl1, cl2);
                 int firstIndex = indexMap.get(cl1.getId());
                 matrix.add(firstIndex, matrixIndex, score);
                 indexMap.put(cl2.getId(), matrixIndex);
             }
         } else {
-            if (indexMap.containsKey(cl2.getId())) { //cl2 je a cl1 neni
-                int matrixIndex = matrix.getMatrixIndex(); //priprava noveho radku
+            if (indexMap.containsKey(cl2.getId())) { //cl2 is and cl1 is not
+                int matrixIndex = matrix.getMatrixIndex(); //prepare new row
                 score = defaultClusterScorer.clusterScore(cl1, cl2);
                 int firstIndex = indexMap.get(cl2.getId());
                 matrix.add(firstIndex, matrixIndex, score);
                 indexMap.put(cl1.getId(), matrixIndex);
-            } else {                                //neni  ani jeden
-                int firstIndex = matrix.getMatrixIndex(); //priprava noveho radku
+            } else {                                //neither is
+                int firstIndex = matrix.getMatrixIndex(); //prepare new row
                 int secondIndex = matrix.getMatrixIndex();
                 score = defaultClusterScorer.clusterScore(cl1, cl2);
                 matrix.addEmpty(firstIndex);
@@ -80,12 +80,13 @@ public class CachedClusterScorer implements ClusterScorer {
     
     
     public synchronized void join(Cluster cl1, Cluster cl2, int newId){
-        /*Prilis male clustery pro ukladani - nemame co slucovat*/
+        /*Clusters too small for saving - nothing to merge*/
         if (cl1.getUniqueSize() < sizeLimit || cl2.getUniqueSize() < sizeLimit){
             return;
         }
         
-        /*Pokus o slouceni dvou jeste nehotovych radku nemuze nastat, pokud join nevolame po ukonceni vsech vlaken pouzivajicich add*/
+        /*An attempt to merge two non-ready rows cannont happen, if "join" is not called after all 
+        threads using "add" finished*/
         
         if (indexMap.containsKey(cl1.getId())) {
             int index1 = indexMap.get(cl1.getId());
@@ -98,23 +99,23 @@ public class CachedClusterScorer implements ClusterScorer {
                     Integer num1 = line1.get(i);
                     Integer num2 = line2.get(i);
                     if (num1 != null && num2 != null) {
-                        newLine.add(i, Math.min(line1.get(i), line2.get(i))); //vypocet skore slouceneho clusteru ke vsem ostatnim
+                        newLine.add(i, Math.min(line1.get(i), line2.get(i))); //calculate the score of the merged cluster to all others
                     } else {
                         newLine.add(i, null);
                     }
                 }
-                matrix.remove(index1); //odstranime stare radky
+                matrix.remove(index1); //remove old rows
                 matrix.remove(index2);
-                int newIndex = matrix.getMatrixIndex(); //priprava vlozeni radku
+                int newIndex = matrix.getMatrixIndex(); //pripare for row insertion
                 matrix.add(newLine, newIndex);
-                indexMap.remove(cl1.getId()); //odstraneni starych indexu
+                indexMap.remove(cl1.getId()); //remove old indexes
                 indexMap.remove(cl2.getId());
                 indexMap.put(newId, newIndex);
-            } else {    //nemame ulozeny hodnoty pro oba clustery
+            } else {    //no values for both clusters saved
                 matrix.remove(index1);
                 indexMap.remove(cl1.getId());
             }
-        } else { //nemame ulozeny hodnoty pro oba clustery
+        } else { //no values for both clusters saved
             if (indexMap.containsKey(cl2.getId())) {
                 int index2 = indexMap.get(cl2.getId());
                 matrix.remove(index2);
@@ -133,8 +134,8 @@ class DynamicMatrix {
         matrix = Collections.synchronizedList(new ArrayList<List<Integer>>());
         dirty = Collections.synchronizedSet(new HashSet<Integer>());
 
-        /* Naplneni prvnich dvou radku (a "sloupcu") matice. Radek s indexem 2
-         je pripraven na zapis hodnot*/
+        /* Fill first two rows (and "columns") of the matrix. Row with index of 
+        2 is ready for new valuest*/
         List<Integer> list = Collections.synchronizedList(new ArrayList<Integer>());
         list.add(null);
         matrix.add(list);
@@ -146,69 +147,67 @@ class DynamicMatrix {
     }
 
     /**
-     * Vrati radek (= sloupec) se zadanym indexem.
-     *
-     * @param lineIndex souradnice radku (= sloupce)
-     * @return radek, ktery je v matici ulozen na zadanem indexu
+     * Returns row (=column) with the index of lineIndex
+     * @param rowIndex coordinates of the row (=columns)
+     * @return row saved on lineIndex
      */
-    public List<Integer> get(int lineIndex) {
-        List<Integer> line = new ArrayList<>(matrix.get(lineIndex));
-        for (int i = lineIndex + 1; i < matrix.size(); i++) {
-            line.add(matrix.get(i).get(lineIndex));
+    public List<Integer> get(int rowIndex) {
+        List<Integer> line = new ArrayList<>(matrix.get(rowIndex));
+        for (int i = rowIndex + 1; i < matrix.size(); i++) {
+            line.add(matrix.get(i).get(rowIndex));
         }
         return new ArrayList<>(line);
     }
 
     /**
-     * Vrati cislo z matice na zadanych souradnicich
-     *
-     * @param index1 prvni souradnice
-     * @param index2 druha souradnice
-     * @return cislo, ktere je v matici na zadanych souradnicich
+     * Returns matrix value on coordinates
+     * @param rowIndex x-coordinate
+     * @param columnIndex y-coordinate
+     * @return value placed in the matrix on index1,index2 coordinates
      */
-    public Integer get(int index1, int index2) {
-        List<Integer> line = matrix.get(Math.max(index1, index2));
+    public Integer get(int rowIndex, int columnIndex) {
+        List<Integer> line = matrix.get(Math.max(rowIndex, columnIndex));
         if (line != null) {
-            return line.get(Math.min(index1, index2));
+            return line.get(Math.min(rowIndex, columnIndex));
         } else {
             return null;
         }
     }
 
     /**
-     * Nastavi hodnotu v matici na zadanych souradnicich
+     * Sets matrix value on specific coordinates
      *
-     * @param lineIndex prvni souradnice
-     * @param columnIndex druha souradnice
-     * @param value nastavovana hodnota
+     * @param rowIndex x-coordinate
+     * @param columnIndex y-coordinate
+     * @param value value to be set
      */
-    public void set(int lineIndex, int columnIndex, int value) {
-        int min = Math.min(lineIndex, columnIndex);
-        int max = Math.max(lineIndex, columnIndex);
+    public void set(int rowIndex, int columnIndex, int value) {
+        int min = Math.min(rowIndex, columnIndex);
+        int max = Math.max(rowIndex, columnIndex);
         List<Integer> line = matrix.get(max);
         if (line != null) {
             line.set(min, value);
             matrix.set(max, line);
         } else {
-            //nic neudelame. cela radka je null, tedy jine vlakno ji zrovna generuje. Kdybychom 
-            //ted radku pripsali, jine vlakno nam ji hned prepise.
+            //Do nothing. The entire row is null, which means another thread is 
+            //generating it right now. Writing here would mean the other thread
+            //will override the value.
         }
     }
 
     /**
-     * Odstrani radek (=sloupec) z matice, resp. oznaci jej z dale nepouzivany
-     *
-     * @param lineIndex souradnice radku k odstraneni
+     * Marks a row (=column) in the matrix as no longer used.
+     * @param rowIndex x-coordinate
      */
-    public void remove(int lineIndex) {
-        dirty.add(lineIndex);
+    public void remove(int rowIndex) {
+        dirty.add(rowIndex);
     }
 
     /**
-     * Vlozi do matice prazdny radek
+     * Inserts an empty row into the matrix
      *
-     * @param matrixIndex souradnice, kam ma byt radek vlozen. Je NUTNE, aby
-     * tato hodnota byla predem ziskana pomoci getMatrixIndex();
+     * @param matrixIndex the row coordinate to put the empty line on. It is NECESSARY
+     * that this value was generated by getMatrixIndex().
      * @throws PhageException
      */
     public void addEmpty(int matrixIndex){
@@ -220,52 +219,51 @@ class DynamicMatrix {
     }
 
     /**
-     * Vlozi do matice radek s jednou hodnotou, jinak prazdny.
+     * Inserts a row containing one value, otherwise empty.
      *
-     * @param index souradnice hodnoty v radku
-     * @param matrixIndex souradnice radku v matici. Je NUTNE, aby tato hodnota
-     * byla predem ziskana pomoci getMatrixIndex();
-     * @param value ukladana hodnota.
+     * @param index index of the value in the row
+     * @param rowIndex x-coordinate of the row in the matrix. It is NECESSARY that
+     * this value was generated using getmatrixIndex();
+     * @param value The value to save.
      * @throws PhageException
      */
-    public void add(int index, int matrixIndex, int value){
+    public void add(int index, int rowIndex, int value){
         List<Integer> line = new ArrayList<>();
         for (int i = 0; i < matrix.size(); i++) {
             line.add(null);
         }
         line.set(index,value);
-        this.add(line, matrixIndex);
+        this.add(line, rowIndex);
     }
 
     /**
-     * Vlozi radek na zadanou pozici v matici.
+     * Inserts a row on a specific position in the matrix
      *
-     * @param line Radek k vlozeni
-     * @param index souradnice radku v matici. Je NUTNE, aby tato hodnota byla
-     * predem ziskana pomoci getMatrixIndex();
+     * @param row The row to insert
+     * @param rowIndex x-coordinate of the row in the matrix. It is NECESSARY that
+     * this value was generated using getmatrixIndex();
      * @throws PhageException
      */
-    public void add(List<Integer> line, int index){
-        List<Integer> firstPart = line.subList(0, index + 1);
-        matrix.set(index, firstPart);
-        for (int i = index + 1; i < matrix.size(); i++) {
+    public void add(List<Integer> row, int rowIndex){
+        List<Integer> firstPart = row.subList(0, rowIndex + 1);
+        matrix.set(rowIndex, firstPart);
+        for (int i = rowIndex + 1; i < matrix.size(); i++) {
             List<Integer> currentLine = matrix.get(i);
-            if ((currentLine != null) && (i < line.size())) {
-                currentLine.set(index, line.get(i));
+            if ((currentLine != null) && (i < row.size())) {
+                currentLine.set(rowIndex, row.get(i));
                 matrix.set(i, currentLine);
             } else {
-                //nebudeme delat nic. V tomto pripade bychom zapsali null, ale ten uz na miste bud je, nebo brzy bude
+                //Do nothing. We would write null, but it is already here or soon will be.
             }
 
         }
     }
 
     /**
-     * Vrati souradnici radku v matici, kam ma byt vlozen dalsi vkladany radek.
-     * Tuto metodu je nutno volat pred kazdym vkladanim do matice, tedy kazdym
-     * volanim add() nebo addEmpty()
+     * Returns matrix x-coordinate where a new row can be inserted. It is necessary
+     * to call this method before every add() or addEmpty()
      *
-     * @return souradnice v matici kam muze byt vlozen dalsi radek
+     * @return matrix x-coordinate to put a new row at
      */
     public synchronized int getMatrixIndex() {
         int matrixIndex;

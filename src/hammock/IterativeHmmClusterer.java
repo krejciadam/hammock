@@ -53,9 +53,9 @@ public class IterativeHmmClusterer {
      * performed in appropriate round
      * @param minMatchStates Minimal number of match states of a HMM after
      * merging
-     * @param minMatchStatesSatisfyingIc Minimal number of match states having
-     * information content higher than minIc
      * @param minIc minimal information content
+     * @param maxAlnLength Cluster MSAs can not have more than this many positions
+     * @param scorer A sequence-sequence scorer to be used for clustering
      * @param nThreads Number of computational threads
      * @return List of resulting clusters
      * @throws IOException

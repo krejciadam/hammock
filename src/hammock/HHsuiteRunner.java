@@ -27,7 +27,7 @@ public class HHsuiteRunner {
     /**
      * Builds hmms in hhsuite format for collection of clusters using parallel
      * execution of multiple instances of hhmake. Clusters with hasHH == ture
-     * will be ommited form hmm building.
+     * will not have their HMMs built.
      *
      * Sets hasHH to true to every cluster if successful. Clusters must be
      * modifiable. Writes out files with hmms to hh directory specified by
@@ -64,30 +64,6 @@ public class HHsuiteRunner {
         callable.call();
     }
 
-    /**
-     * Performs conversion from aligned fasta format to a2m format using
-     * reformat.pl script form HHsuite, Calls reformat.pl as external process.
-     * Saves resulting file in [cluster_id].a2m in msa folder specified by
-     * Settings Cluster must be modifiable Cluster must have .aln file
-     * constructed in direcotry specified by Settings
-     *
-     * @param cluster
-     * @throws IOException
-     * @throws InterruptedException
-     */
-    public static void alnToA2M(Cluster cluster) throws IOException, InterruptedException, DataException {
-//        List<String> parameters = new ArrayList<>();
-//        parameters.add("fas");
-//        parameters.add("a2m");
-//        parameters.add(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln");
-//        parameters.add(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m");
-//        if (Settings.getInstance().getReformatParameters() != null) {
-//            parameters.addAll(Settings.getInstance().getReformatParameters());
-//        }
-//        ExternalProcessRunner.runProcess(Settings.getInstance().getReformatCommand(), parameters, null, System.err, "While reformating MSA for cluster " + cluster.getId() + " ");
-        FileIOManager.aln2a2m(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
-    }
-
     public static int getHHLength(Cluster cl) throws IOException {
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(
                 Settings.getInstance().getHhDirectory() + cl.getId() + ".hhm")))) {
@@ -108,6 +84,7 @@ public class HHsuiteRunner {
      *
      * @param alignedCluster Cluster to be compared to all members of
      * searchedClusters
+     * @param searchedClusters A collection of clusters to be compared to alignedCluster
      * @paragetHHLengtm searchedClusters All members of this Collection will be compared
      * to alignedCluster
      * @param threadPool ExecutorService to be used for parallel run
@@ -161,6 +138,15 @@ public class HHsuiteRunner {
         return result;
     }
     
+    /**
+     * Aligns all clusters from clusters1 to all clusters from clusters2
+     * @param clusters1 One collection of clusters to align
+     * @param clusters2 Another collection of clusters to align
+     * @param threadPool To be used for parallel prcessing
+     * @return All the identified hits
+     * @throws InterruptedException
+     * @throws ExecutionException 
+     */
     public static List<HHalignHit> alignAllVsAll(Collection<Cluster> clusters1, Collection<Cluster> clusters2, ExecutorService threadPool) throws InterruptedException, ExecutionException{
         List<Cluster> clusterList = new ArrayList<>();
         clusterList.addAll(clusters2);
@@ -176,8 +162,8 @@ public class HHsuiteRunner {
     }
 
     /**
-     * Merges two clusters contained in HHalignHit object and returns resulting
-     * cluster having MSA constructed. Method uses alignment supported by
+     * Merges two clusters contained in a HHalignHit object and returns resulting
+     * cluster having a MSA constructed. Method uses alignment supported by
      * HHalign/HHsearch
      *
      * @param hit object representing two clusters to be merged
@@ -352,7 +338,7 @@ class SingleThreadHHmakeRunner implements Callable<Void> {
         if (!(cluster.hasMSA())) {
             ClustalRunner.multipleAlignment(cluster);
         }
-        HHsuiteRunner.alnToA2M(cluster);
+        FileIOManager.alnToA2M(cluster);
         parameters.add("-i");
         parameters.add(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m");
         parameters.add("-o");

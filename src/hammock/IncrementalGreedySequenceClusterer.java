@@ -23,7 +23,7 @@ public class IncrementalGreedySequenceClusterer implements SequenceClusterer {
     /**
      * Constructor.
      *
-     * @param threshold Minimum score for a sequence to be added into cluster
+     * @param threshold Minimum score for a sequence to be added into a cluster
      * during greedy clustering.
      */
     public IncrementalGreedySequenceClusterer(int threshold) {

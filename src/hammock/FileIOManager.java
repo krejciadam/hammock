@@ -1,5 +1,5 @@
 /*
- * Class handles most of work with files.
+ * Class handles most of I/O work with files
  */
 package hammock;
 
@@ -33,7 +33,7 @@ import org.apache.commons.lang3.StringUtils;
 public class FileIOManager {
 
     /**
-     * Returns a scoring matrix. Matrix uses standard amino acid ordering
+     * Loads a scoring matrix. Matrix uses standard amino acid ordering
      * (defined in UniqueSequence). Input file must contain scoring matrix in
      * BioJava format.
      *
@@ -79,6 +79,12 @@ public class FileIOManager {
         return scoringMatrix;
     }
 
+    /**
+     * Loads frequency matrix of background frequencies for KLD calculation
+     * @param path A path to the matrix
+     * @return The frequency matrix
+     * @throws IOException 
+     */
     public static Map<Character, Map<Character, Double>> loadFrequencyMatrix(String path) throws IOException {
         Map<Character, Map<Character, Double>> result = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
@@ -109,6 +115,12 @@ public class FileIOManager {
         return (result);
     }
     
+    /**
+     * Loads a matrix of empirical probabilities
+     * @param path
+     * @return
+     * @throws IOException 
+     */
     public static Map<Double, Double> loadEmpiricalProbabs(String path) throws IOException{
         Map<Double, Double> result = new HashMap<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
@@ -131,7 +143,8 @@ public class FileIOManager {
      * seuquence) Each seuqence must have a header line starting with ">".
      * Header may contain sequence label in format: ">any_text|count|label". To
      * each sequence not having label in the header, default label "no_label" is
-     * assigned. Sequences in fasta file need not to be unique.
+     * assigned. Sequences in fasta file need not to be unique. Multi-line
+     * fasta files are not supported.
      *
      * @param fileName Path to file to be loaded
      * @return List of UniqueSequence objects parsed in the input order (of
@@ -196,7 +209,7 @@ public class FileIOManager {
 
     /**
      * Loads UniqueSequence from a .csv table. Table must contain header
-     * specifiing full list of labels. 
+     * specifying full list of labels. 
      *
      * @param fileName
      * @return
@@ -233,6 +246,16 @@ public class FileIOManager {
         return (new UniqueSequence(sequence, labelsMap));
     }
     
+    /**
+     * For specified clusters, loads their alignments from a file, saves them
+     * as temporal files and marks the clusters as having MSAs. If some clusters
+     * are missing or different in size in the file, a FileFormatException is thrown.
+     * @param clusters Clusters whose alignments are to be loaded
+     * @param fileName Path to the file with saved clusters
+     * @return
+     * @throws FileFormatException
+     * @throws IOException 
+     */
     public static List<Cluster> loadClusterAlignmentsFromFile(List<Cluster> clusters, String fileName) throws FileFormatException, IOException{
         List<Cluster> result = new ArrayList<>();
         Set<Integer> ids = new HashSet<>();
@@ -253,6 +276,15 @@ public class FileIOManager {
         return result;
     }
 
+    /**
+     * Loads clusters from a .csv file. The file may or may not contain alignment
+     * column. Clusters will be loaded with or without alignments, accordingly.
+     * @param fileName A path to the clusters' csv file.
+     * @param loadAlignments Should alignments be loaded from the file?
+     * @return
+     * @throws FileFormatException
+     * @throws IOException 
+     */
     public static List<Cluster> loadClustersFromCsv(String fileName, boolean loadAlignments) throws FileFormatException, IOException{
         return(loadClusterDetailsFromCsv(fileName, null, loadAlignments));
     }
@@ -322,7 +354,15 @@ public class FileIOManager {
     }
 
     /**
-     * Saves a csv file containing one line per sequence for every cluster on
+     * @see FileIOManager#saveClusterSequencesToCsvOrdered(Collection<Cluster>, String, List<String>, Collection<UniqueSequence>, Map<Cluster, String>)
+     */
+    public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences) throws IOException {
+        Map<Cluster, List<String>> alignmentsMap = getAlignmentsMap(clusters);
+        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels, alignmentsMap);
+    }
+    
+    /**
+     * Saves a .csv file containing one line per sequence for every cluster on
      * input, retains the order defined by orderedSequences
      *
      * @param clusters Clusters to be saved
@@ -330,29 +370,17 @@ public class FileIOManager {
      * @param labels List of labels. Only these labels and their appropriate
      * counts will be saved in resulting file.
      * @param orderedSequences Defines the order of the sequences in the file
+     * @param alignmentsMap An existing alignmentsMap, which will be re-formated for writing purposes
      * @throws IOException
      */
-    public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences) throws IOException {
-        Map<Cluster, List<String>> alignmentsMap = getAlignmentsMap(clusters);
-        writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels, alignmentsMap);
-    }
-    
     public static void saveClusterSequencesToCsvOrdered(Collection<Cluster> clusters, String filePath, List<String> labels, Collection<UniqueSequence> orderedSequences, Map<Cluster, String> alignmentsMap) throws IOException {
         Map<Cluster, List<String>> newAlignmentsMap = reformatAlignmentsMap(clusters, alignmentsMap);
         writeClusterSequencesToCsv(orderedSequences, clusters, filePath, labels, newAlignmentsMap);
     }
 
-    /**
-     * Saves a csv file containing one line per sequence for every cluster on
-     * input. The resulting file is ordered from the largest cluster to the
-     * smallest, within a cluster, sequences are ordered by size and
-     * alphabetically
-     *
-     * @param clusters Clusters to be saved
-     * @param filePath Path to resulting file
-     * @param labels List of labels. Only these labels and their appropriate
-     * counts will be saved in resulting file.
-     * @throws IOException
+
+     /**
+     * @see saveClusterSequencesToCsv(Collection<Cluster>, String, List<String>, Map<Cluster, String>)
      */
     public static void saveClusterSequencesToCsv(Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
         List<Cluster> clusterSortedList = new ArrayList<>(clusters);
@@ -362,6 +390,19 @@ public class FileIOManager {
         writeClusterSequencesToCsv(sortedSequences, clusters, filePath, labels, alignmentsMap);
     }
     
+     /**
+     * Saves a csv file containing one line per sequence for every cluster on
+     * input. The resulting file is ordered from the largest cluster to the
+     * smallest, within a cluster, sequences are ordered by size and
+     * alphabetically
+     *
+     * @param clusters Clusters to be saved
+     * @param filePath Path to resulting file
+     * @param labels List of labels. Only these labels and their appropriate
+     * counts will be saved in resulting file.
+     * @param alignmentsMap An existing alignment map which will be re-formated for writing purposes
+     * @throws IOException
+     */
     public static void saveClusterSequencesToCsv(Collection<Cluster> clusters, String filePath, List<String> labels, Map<Cluster, String> alignmentsMap) throws IOException{
         List<Cluster> clusterSortedList = new ArrayList<>(clusters);
         Collections.sort(clusterSortedList, Collections.reverseOrder());
@@ -381,6 +422,15 @@ public class FileIOManager {
         return(empiricalProbabs.get((double) Math.round(score * 10) / 10)); //one decimal place rounding
     }
     
+    /**
+     * Saves the results of multiple HMMSearch runs to a csv file. 
+     * @param hits The HMMSearch hits to be saved
+     * @param filePath Path to save the results into
+     * @param empiricalProbabsFile File containing empirical probabilities for this search
+     * @param clusterCount How many clusters are in the result
+     * @param sequenceCount How many sequences are in the result
+     * @throws IOException 
+     */
     public static void saveHmmsearchHitsToCsv(Collection<HmmsearchSequenceHit> hits, String filePath, String empiricalProbabsFile, int clusterCount, int sequenceCount) throws IOException{
         Map<Double, Double> empiricalProbabs = null;
         double min = Double.MAX_VALUE;
@@ -421,6 +471,14 @@ public class FileIOManager {
         }
     }
     
+    /**
+     * Saves the results of multiple HHAlign runs to a csv file in the form of an all vs. all matrix.
+     * @param hits The HHAlign hits to be saved
+     * @param clusters1 One set of compared clusters (matrix rows)
+     * @param clusters2 The other set of compared clusters (matrix columns)
+     * @param filePath A path to save the file to.
+     * @throws IOException 
+     */
     public static void saveHHAlignHitsToCsv(Collection<HHalignHit> hits, Collection<Cluster> clusters1, Collection<Cluster> clusters2, String filePath) throws IOException{
         Map<Integer, Map<Integer, Double>> scoreMatrix = new HashMap<>();
         for (HHalignHit hit : hits){
@@ -487,6 +545,13 @@ public class FileIOManager {
         return(alignmentsMap);
     }
     
+    /**
+     * Saves a collection of unique sequences into a file
+     * @param sequences Sequences to be saved
+     * @param filePath File to write the sequences into
+     * @param labels A list of sequence labels. Defines the column order
+     * @throws IOException 
+     */
     public static void saveUniqueSequencesToCsv(Collection<UniqueSequence> sequences, String filePath, List<String> labels) throws IOException{
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             writer.write("sequence");
@@ -555,11 +620,12 @@ public class FileIOManager {
     }
 
     /**
-     * Saves cluster overview to .csv file
+     * Saves cluster overview to .csv file. Lines are sorted by cluster size
+     * from the largest.
      *
-     * @param clusters
-     * @param filePath
-     * @param labels
+     * @param clusters Clusters to be saved
+     * @param filePath Path to a file write the clusters into
+     * @param labels A list of labels to use. Defines column order
      * @throws IOException
      */
     public static void SaveClustersToCsv(Collection<Cluster> clusters, String filePath, List<String> labels) throws IOException {
@@ -592,7 +658,7 @@ public class FileIOManager {
     }
 
     /**
-     * Returns labels count map for whole cluster (sum of all sequences)
+     * Returns labels count map of an entire cluster (sum of all sequences)
      *
      * @param cl
      * @return
@@ -614,11 +680,11 @@ public class FileIOManager {
     }
 
     /**
-     * Saves file containing input statistics - information on sequences and
+     * Saves a file containing input statistics - information on sequences and
      * their counts
      *
-     * @param sequences
-     * @param labels
+     * @param sequences 
+     * @param labels Labels to be part of the file. Defines column order
      * @param filePath
      * @throws IOException
      */
@@ -644,6 +710,12 @@ public class FileIOManager {
         }
     }
 
+    /**
+     * Loads the alignments from a MSA file.
+     * @param path Path to the MSA file
+     * @return A list of strings, each member is one MSA string. Input order is retained.
+     * @throws IOException 
+     */
     public static List<String> getAlignmentLines(String path) throws IOException {
         List<String> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(path)))) {
@@ -659,7 +731,7 @@ public class FileIOManager {
     }
 
     /**
-     * Loads temporal MSA file for a cluster and returns onlu lines containing
+     * Loads temporal MSA file for a cluster and returns only lines containing
      * alignment in form of a (multiline) string
      *
      * @param cl
@@ -704,7 +776,7 @@ public class FileIOManager {
     }
 
     /**
-     * Saves one Cluster object to a fasta file. No linebreaks are addeded.
+     * Saves one Cluster to a fasta file. No linebreaks are addeded.
      * Cluster's sequences are saved in reversed natural order.
      *
      * @param cluster Cluster object to be saved
@@ -735,6 +807,13 @@ public class FileIOManager {
         return getNthLine(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln", 1);
     }
 
+    /**
+     * Returns the first line of a cluster's alignment in the A2m format.
+     * @param cl
+     * @return
+     * @throws DataException
+     * @throws IOException 
+     */
     public static String getFirstA2mSeq(Cluster cl) throws DataException, IOException {
         if (!cl.hasMSA()) {
             throw new DataException("Error, Can't return alignment line for a cluster without alignment.");
@@ -756,7 +835,7 @@ public class FileIOManager {
     }
 
     /**
-     * Merges MSA files for two clusters, adds any gaps specified
+     * Merges MSA files for two clusters, adds any gap columns specified
      *
      * @param cl1 first cluster to be merged
      * @param cl2 second cluster to be merged
@@ -803,6 +882,15 @@ public class FileIOManager {
         return res.toString();
     }
     
+    /**
+     * Creates an alignment out of a greedy incremental clustering result
+     * @param pivot The central sequence of the greedy cluster
+     * @param results Sequences aligned to the pivot
+     * @param clusterId The cluster id to be part of the result
+     * @return A string containing the alignment in the form of a .aln (aligned
+     * fasta) file.
+     * @throws IOException 
+     */
     public static String makeShiftedClusterAlignment(UniqueSequence pivot, List<AligningScorerResult> results, int clusterId) throws IOException {
         int maxLengthPlusShift = pivot.getSequence().length; //if everything is shifted to left or short, pivot is the longest
         int minShift = 0;
@@ -855,7 +943,7 @@ public class FileIOManager {
     }
 
     /**
-     * For every cluster, saves path to its appropriate .hmm file in temporal
+     * For every cluster, saves the path to its appropriate .hmm file in temporal
      * files
      *
      * @param clusters
@@ -874,7 +962,7 @@ public class FileIOManager {
     }
 
     /**
-     * Writes a collection of sequences to a fasta file. Assigns a unique
+     * Writes a collection of sequences intoto a fasta file. Assigns a unique
      * (unique only within this file) id to each sequences, this id will be
      * written to fasta file. Returns a map where key is assigned unique id and
      * value is UniqueSequence object with this unique id assigned. Does not
@@ -906,6 +994,14 @@ public class FileIOManager {
         return idMap;
     }
 
+    /**
+     * Writes a fasta file containing the unique sequences on input. Label
+     * and count information will be retained in the fasta headers. Input
+     * order is retained.
+     * @param sequences Sequences to save
+     * @param filePath Path to a file to save the sequences into.
+     * @throws IOException 
+     */
     public static void saveUniqueSequencesToFasta(Collection<UniqueSequence> sequences, String filePath) throws IOException {
         int id = 0;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
@@ -945,7 +1041,7 @@ public class FileIOManager {
 
     /**
      * Renames all records in a fasta file so that seuqnce headers are in format
-     * >newId_n where n is sequence index (from top to botton in file)
+     * >newId_n where n is sequence index (from top to bottom in file)
      *
      * @param filePath path to fasta file to be changed
      * @param newId header prefix
@@ -972,7 +1068,7 @@ public class FileIOManager {
     }
 
     /**
-     * Deletes all files in specified folder
+     * Deletes all files in a specified folder
      *
      * @param folderName Path to folder in which all files will be deleted
      */
@@ -1050,7 +1146,7 @@ public class FileIOManager {
     }
 
     /**
-     * For every label in list, counts its occurrences in collection of
+     * For every label in a list, counts its occurrences in collection of
      * UniqueSequence objects. Full (nonunique) counts are returned
      *
      * @param sequences
@@ -1152,6 +1248,13 @@ public class FileIOManager {
         return result;
     }
 
+    /**
+     * Counts the occurrences of amino acids in each column of an MSA.
+     * @param alignmentLines A string containing a MSA.
+     * @return A list, each member is a map respective to the appropriate
+     * position in the MSA
+     * @throws IOException 
+     */
     public static List<Map<Character, Integer>> getPositionLetterCounts(List<String> alignmentLines) throws IOException {
         List<Map<Character, Integer>> positionLetterCounts = new ArrayList<>();
         int lineLength = alignmentLines.get(0).trim().length();
@@ -1174,6 +1277,22 @@ public class FileIOManager {
         return (positionLetterCounts);
     }
 
+    /**
+     * On the basis of criteria provided, decides which columns of a MSA
+     * fulfill the criteria - maximal gap proportion and minimal information content
+     * and will be considered match states.
+     * @param alignmentLines The MSA to be evaluated
+     * @param maxGapProportion Maximal proportion of gap ('-' characters) in a column
+     *                          to be considered a match state.
+     * @param minIc Minimal information content of a MSA column to be considered
+     *              a match state
+     * @param allowInnerGaps If true, a non-match state can lay between two match states
+     *                      Otherwise, all the positions between the leftmost
+     *                      and the rightmost match states are considered match 
+     *                      states.
+     * @return
+     * @throws IOException 
+     */
     public static List<Boolean> defineMatchStates(List<String> alignmentLines, double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException {
         List<Double> informationContents = getInformationContents(alignmentLines, maxGapProportion);
         List<Boolean> result = new ArrayList<>();
@@ -1207,19 +1326,20 @@ public class FileIOManager {
         return result;
     }
 
-    /**
+     /**
      * Transforms MSA in aln format to a2m format. Match columns (upper case)
-     * are selected based on maximal proportion of gaps and minimal information
-     * content in a match state.
+     * are selected based on Global properties in Hammock. Saves the a2m file to 
+     * the temporal folder.
      *
-     * @param inFile
-     * @param outFile
-     * @param maxGapProportion
-     * @param minIc
+     * @param cluster
      * @throws IOException
-     * @throws DataException
+     * @throws InterruptedException
      */
-    public static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException, DataException {
+    public static void alnToA2M(Cluster cluster) throws IOException, InterruptedException, DataException {
+        aln2a2m(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
+    }
+    
+    private static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException, DataException {
         List<Boolean> matchStates = defineMatchStates(getAlignmentLines(inFile), maxGapProportion, minIc, allowInnerGaps);
         try (BufferedReader reader = new BufferedReader(new FileReader(inFile)); BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             String line;
@@ -1320,6 +1440,12 @@ public class FileIOManager {
         return (alignmentLines.get(0).length() <= maxLength);
     }
 
+    /**
+     * Checks the number of inner gaps in the first and last lines of a msa
+     * @param alignmentLines
+     * @param maxGaps
+     * @return 
+     */
     public static boolean checkBothInnerGaps(List<String> alignmentLines, int maxGaps) {
         return ((countInnerGaps(alignmentLines.get(0)) <= maxGaps) && (countInnerGaps(alignmentLines.get(alignmentLines.size() - 1)) <= maxGaps));
     }

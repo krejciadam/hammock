@@ -1,5 +1,5 @@
 /*
- * Performs cluster-cluster comparison
+ * Performs cluster-cluster comparison using complete-linkae
  */
 package hammock;
 
@@ -23,9 +23,6 @@ public class ClinkageClusterScorer implements ClusterScorer {
      * when the score is less than threshold
      * @param cl1 First (any) cluster to be compared
      * @param cl2 Second (any) cluster to be compared
-     * @param scorer Scorer to be used for sequence-sequence comparison
-     * @param threshold If cluster-cluster score is less than this threshold, 
-     * it will not be calculated and reported. Integer.min_value will be reported instead
      * @return Complete-linkage score of the clusters
      * @throws hammock.DataException
      */

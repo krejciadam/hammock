@@ -165,7 +165,7 @@ class SingleThreadHmmbuildRunner implements Callable<Void> {
             return null;
         }
         ClustalRunner.multipleAlignment(cluster);
-        HHsuiteRunner.alnToA2M(cluster);
+        FileIOManager.alnToA2M(cluster);
         List<String> parameters = new ArrayList<>();
         List<String> hmmbuildParameters = Settings.getInstance().getHmmbuildParameters();
         if (hmmbuildParameters != null) {

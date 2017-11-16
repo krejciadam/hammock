@@ -17,7 +17,7 @@ import java.util.Properties;
  */
 public class Settings {
 
-    private static final Settings instance = new Settings();
+    private static final Settings INSTANCE = new Settings();
     private final char separatorChar = File.separatorChar; //system separator
     private final String jarParentDir;
     private final String propertiesFile;
@@ -49,7 +49,7 @@ public class Settings {
     private String fastaDatabaseFile = null;
 
     public static Settings getInstance() {
-        return instance;
+        return INSTANCE;
     }
 
     /**

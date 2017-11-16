@@ -1,5 +1,5 @@
 /*
- * This exception reports errors in data structure
+ * This exception reports errors in data structures
  */
 
 package hammock;

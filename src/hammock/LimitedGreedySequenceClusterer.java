@@ -1,7 +1,6 @@
 /*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
+ * Clusters sequences using a greedy algorithm. The results satisfy the 
+complete-likage criterion.
  */
 package hammock;
 
@@ -13,7 +12,7 @@ import java.util.concurrent.ExecutorCompletionService;
 
 /**
  *
- * @author akrejci
+ * @author Adam Krejci
  */
 public class LimitedGreedySequenceClusterer implements SequenceClusterer {
     private final int threshold;
@@ -24,6 +23,17 @@ public class LimitedGreedySequenceClusterer implements SequenceClusterer {
         this.maxClusters = maxClusters;
     }
     
+    /**
+     * Clusters sequences using a greedy scheme. The results satisfy the complete-linkage
+     * criterion.
+     * @param sequences Sequences to cluster.
+     * @param sequenceScorer Sequence-sequence scorer
+     * @return Resulting clustering. Orphan sequences are returned as single-member
+     * clusters.
+     * @throws InterruptedException
+     * @throws ExecutionException
+     * @throws DataException 
+     */
     @Override
     public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer sequenceScorer) throws InterruptedException, ExecutionException, DataException{
         ClusterScorer clusterScorer = new ClinkageClusterScorer(sequenceScorer, threshold);
@@ -57,6 +67,12 @@ public class LimitedGreedySequenceClusterer implements SequenceClusterer {
         return(actualClusters);
     }
     
+    /**
+     * First, sequences are merged with their nearest neighbors. Clusters of 
+     * size more than 2 can arise, in case an existing cluster is a sequence's 
+     * nearest neighbor. Stops when there are maxClusters clusters of size at least
+     * 2 or all the sequences were processed.
+     */
     private List<Cluster> firstPhase(List<UniqueSequence> sequences, int maxClusters, ClusterScorer clusterScorer) throws InterruptedException, ExecutionException, DataException{
         List<Cluster> initialList = new ArrayList<>();
         for (int i = 0; i < sequences.size(); i++){
