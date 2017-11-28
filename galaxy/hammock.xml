@@ -1,0 +1,383 @@
+<tool id="hammock_1.0" name="Hammock - cluster peptides" version="1.1.1" hidden="false">
+
+    <description>Clusters short peptide sequences</description>
+
+    <command interpreter="bash">
+wrapper.sh \$HAMMOCK_JAR full --galaxy -t \${GALAXY_SLOTS:-4} -i $input --goc $output_clusters --gos $output_sequences --goo $output_sequences_ordered
+
+	   #if $label_params.set_labels == "set":
+                #for $s in $label_params.round_labels:
+			#set $l_field = $l_field + str($s.label) + ","
+		#end for		
+		-l $l_field
+	    #end if
+
+	    #if $advanced_initial_params.set_initial_params == "set":
+		-x $advanced_initial_params.max_shift
+		-p $advanced_initial_params.shift_penalty
+		-R $advanced_initial_params.set_order.order
+
+		#if $advanced_initial_params.algorithm == "clinkage":
+			--use_clinkage
+		#end if
+
+		#if $advanced_initial_params.algorithm == "greedy":
+			--use_greedy
+		#end if
+
+		#if $advanced_initial_params.set_order.order == "random":
+			-S $advanced_initial_params.set_order.seed
+		#end if
+	
+		-m \${MATRIX_PATH}${advanced_initial_params.scoring_matrix}.txt
+            	#if $advanced_initial_params.initial_params.set_initial == "set":
+                	-g $advanced_initial_params.initial_params.initial_threshold
+            	#end if
+            #end if
+
+ 	    #if $advanced_hmm_params.set_hmm_params == "set":
+            	#if $advanced_hmm_params.threshold_params.clustering_threshold == "part":
+                	-a $advanced_hmm_params.threshold_params.part_threshold
+            	#end if
+
+            	#if $advanced_hmm_params.threshold_params.clustering_threshold == "size":
+                	-s $advanced_hmm_params.threshold_params.size_threshold
+            	#end if
+
+            	#if $advanced_hmm_params.threshold_params.clustering_threshold == "count":
+                	-c $advanced_hmm_params.threshold_params.count_threshold
+            	#end if
+		#if $advanced_hmm_params.unique == "unique":
+			--unique
+		#end if
+
+	    	#set $n_field=""
+	    	#set $v_field=""
+	    	#set $r_field=""
+	
+    	    	#if $advanced_hmm_params.score_params.set_scores == "set":
+			#if $advanced_hmm_params.score_params.relative_scores == "relative":
+                		-e
+            		#end if
+            		#if $advanced_hmm_params.score_params.relative_scores == "absolute":
+                		-b
+            		#end if
+
+                	#for $s in $advanced_hmm_params.score_params.round:
+				#set $n_field = $n_field + str($s.assign_score) + ","
+				#set $v_field = $v_field + str($s.overlap_score) + ","
+				#set $r_field = $r_field + str($s.merge_score) + ","
+			#end for
+
+			-n $n_field
+			-v $v_field
+			-r $r_field
+            	#end if
+	    	#set $l_field=""
+
+            	#if $advanced_hmm_params.match_state_params.set_max_aln_length == "set":
+                	-j $advanced_hmm_params.match_state_params.max_aln_length
+            	#end if
+
+            	#if $advanced_hmm_params.extension_increase_length == "Yes":
+                	-q
+            	#end if
+
+		-k $advanced_hmm_params.min_ic 
+		-y $advanced_hmm_params.max_gap_proportion
+		-u $advanced_hmm_params.max_inner_gaps
+		-h $advanced_hmm_params.min_match_states
+		-C $advanced_hmm_params.min_correlation
+	#end if		
+			
+</command>
+
+    <inputs>
+        <param format="fasta" name="input" type="data" label="Source sequence file" help="File with sequences to cluster in fasta format. See -i, --input in the manual for details." />
+
+<conditional name="label_params">
+            <param name="set_labels" type="select" label="Specify a subset of labels to be used" help="Set Automatic to use all labels present in the data or choose a subset of labels to be used. See -l, --labels in the manual for details.">
+              <option value="auto">Automatic - all labels</option>
+              <option value="set">Set list of labels manually</option>
+            </param>
+            <when value="auto" />
+            <when value="set">
+              		<repeat name="round_labels" title="Label">
+						<param name="label" type="text" value="" label="Sequence label"/>
+					</repeat>
+			</when>
+</conditional>
+
+
+<conditional name="advanced_initial_params">
+        <param name="set_initial_params" type="select" label="Initial clustering options">
+            <option value="auto">Default - automatic settings</option>
+            <option value="set">Set manually</option>
+        </param>
+        <when value="auto" />
+	    <when value="set">
+
+			<param name="algorithm" type="select" label="Initial clustering algorithm" help="Select which initial clustering algorithm to use.  See --use clinkage and --use greedy in the manual for details.">
+        		<option value="auto">Automatic</option>
+                <option value="clinkage">Clinkage (Complete linkage)</option>
+                <option value="greedy">Greedy</option>
+            </param>
+
+         	<param name="max_shift" type="integer" value="3" min="0" label="Maximal sequence shift" help="Maximal number of positions sequences are allowed to shift for during initial clustering. See -x, --max shift in the manual for details." />
+
+         	<param name="shift_penalty" type="integer" value="0" label="Sequence shift penalty" help="Score penalty added to to each alignment score during initial clustering. This penalty is added for every amino acid aligned towards a (trailing) gap. This value should typically be non-positive (With a positive value, sequences benefit from containing more gaps). See -p, --gap penalty in the manual for details."/>
+
+	      <conditional name="set_order">
+
+              		<param name="order" type="select" label="Initial clustering order" help="Select the order of sequences during initial clustering. See -R, --order in the manual for details.">
+                  		<option value="size">Size</option>
+                  		<option value="alphabetic">Alphabetic</option>
+                  		<option value="random">Random</option>
+						<option value="input">Input</option>
+              		</param>
+
+			<when value="size" />
+			<when value="alphabetic" />
+            		<when value="random">
+         			<param name="seed" type="integer" value="42" label="Seed for random number generation" help="Set a seed value for the pseudorandom sequence order. See -S, --seed in the manual for details."/>
+			</when>
+			<when value="input" />
+
+		</conditional>
+
+		
+
+              <param name="scoring_matrix" type="select" label="Substitiution matrix schema." help="Select a substitution matrix to be used to score alignments during glreedy clustering. See -m, --matrix in the manual for details.">
+                  <option value="blosum62">Blosum 62</option>
+                  <option value="blosum30">Blosum 30</option>
+                  <option value="blosum35">Blosum 35</option>
+				  <option value="blosum40">Blosum 40</option>
+				  <option value="blosum45">Blosum 45</option>
+				  <option value="blosum50">Blosum 50</option>
+				  <option value="blosum55">Blosum 55</option>
+				  <option value="blosum60">Blosum 60</option>
+				  <option value="blosum65">Blosum 65</option>
+				  <option value="blosum70">Blosum 70</option>
+				  <option value="blosum75">Blosum 75</option>
+				  <option value="blosum80">Blosum 80</option>
+				  <option value="blosum85">Blosum 85</option>
+				  <option value="blosum90">Blosum 90</option>
+				  <option value="blosum100">Blosum 100</option>
+				  <option value="gonnet250">Gonnet 250</option>
+				  <option value="pam250">Pam 250</option>
+              </param>
+
+		<conditional name="initial_params">
+            		<param name="set_initial" type="select" label="Set initial clustering threshold" help="Minimal alignment score needed for a sequence to join a cluster during initial clustering. Can be either user defined or set automatically based on mean sequence length. See -g, --greedy threshold in the manual for details.">
+              			<option value="auto">Auto detection</option>
+              			<option value="set">Set manually</option>
+            		</param>
+            		<when value="auto" />
+            		<when value="set">
+              			<param name="initial_threshold" type="integer" value="24" min="0" label="Initial clustering threshold" help="Minimal alignment score needed for a sequence to join a cluster during initial clustering." />
+			</when>
+		</conditional>
+
+	</when>
+</conditional>
+
+<conditional name="advanced_hmm_params">
+            <param name="set_hmm_params" type="select" label="HMM-clustering options">
+            	<option value="auto">Default - automatic settings</option>
+            	<option value="set">Set manually</option>
+            </param>
+            <when value="auto" />
+	    <when value="set">
+
+
+		<conditional name="threshold_params">
+            		<param name="clustering_threshold" type="select" label="How many initial clusters to use as cluster cores" help="After initial clusering, some of the largest clusters are selected as cluster cores for subsequent clustering procedure. The number of cluster cores can be determined either automatically or manually as top x percent of largest clusters, all clusters satisfying size threshold or exact number of clusters. See -a, --part threshold, -s, --size threshold and -c, --count threshold in the manual for details.">
+              			<option value="auto">Automatic setting</option>
+              			<option value="part">Set percentual proportion</option>
+			  	<option value="size">Set size threshold</option>
+			  	<option value="count">Set explicit count</option>
+            		</param>
+            		<when value="auto" />
+            		<when value="part">
+              			<param name="part_threshold" type="float" value="0.025" min="0.00001" max="1.0" label="The proporiton of the largest initial clusters to be used as cluster cores in subsquent clustering procedure." help="See -a, --part threshold in the manual for details." />
+			</when>
+            		<when value="size">
+              			<param name="size_threshold" type="integer" value="10" min="1" label="Minimum size of an initial cluster needed for it to be used as cluster core in subsquent clustering procedure." help="See -s, --size threshold in the manual for details."/>
+			</when>
+            		<when value="count">
+              			<param name="count_threshold" type="integer" value="25" min="1" label="The number of initial clusters to be used as cluster cores in subsquent clustering procedure." help="See -c, --count threshold in the manual for details"/>
+			</when>
+		</conditional>
+
+		<param name="unique" type="select" label="Select initial clusters on the basis of" help="Initial clusters to be used as cluster cores will be selected on the basis of eiter sum of all sequence counts across all labels or unique sequence count.  See -U, --unique in the manual for details.">
+        	<option value="total">Total size</option>
+        	<option value="unique">Unique size</option>
+        </param>
+
+		<conditional name="score_params">
+            		<param name="set_scores" type="select" label="Clustering rounds" help="Set the number of clustering rounds and score thresholds used. Automatic mode means 3 rounds and score thresholds defined based on mean sequence length.">
+              			<option value="auto">Automatic settings</option>
+              			<option value="set">Set manually</option>
+            		</param>
+            		<when value="auto" />
+            		<when value="set">
+				<param name="relative_scores" type="select" label="Relative/absolute scores" help="All score thresholds in all clustering rounds can be interpreted either as relative values (per HMM match-state) or absolute values. See -e, --relative thresholds in the manual for details.">
+              				<option value="absolute">Scores are absolute values</option>
+					<option value="relative">Scores are relative, i.e. per match state</option>
+            			</param>
+              			<repeat name="round" title="Round">
+					<param name="assign_score" type="float" value="10.0" min="0.0" label="Assign threshold" help="Minimal score needed for a sequence to be assigned to a cluster. See -n, --assign thresholds in the manual for details." />
+					<param name="overlap_score" type="float" value="8.0" min="0.0" label="Overlap threshold" help="Minimal score needed for two clusters to be considered overlapping. This affects cluster merging step heuristic speedup. If this is set to 0.0, full cluster merging routine will be performed, which is the most precise but the slowest. It is suggested to perform full cluster merging routine at least in the last round. See -v, --overlap thresholds in the manual for details."/>
+					<param name="merge_score" type="float" value="10.0" min="0.0" label="Merge threshold" help="Minimal score needed for two clusters to be merged. See -r, --merge thresholds in the manual for details"/>
+				</repeat>
+			</when>
+		</conditional>
+
+		<param name="min_match_states" type="integer" value="4" min="0" label="Minimal number of conserved positions." help=" Minimal number of match conserved MSA positions maintained in each cluster throughout the computation. See -h, --min_conserved_positions in the manual for details."/>
+
+		<param name="max_gap_proportion" type="float" value="0.05" min="0.0" max="1.0" label="Maximal proportion of gaps allowed on a conserved position" help="Maximal proportion of gaps in HMM match states. Any multiple sequence alignment column containing more gaps will not be considered a match state. See -y, --max gap proportion in the manual for details."/>
+
+		<param name="min_ic" type="float" value="1.2" min="0.0" max="4.3219280" label="Minimal information content allowed on a conserved position" help="Minimal information content (In terms of Shannon information theory) of HMM match states. Any multiple sequence alignment column having lower information content will not be considered a match state. Minimum: 0.0 (any MSA column composition), maximum: 4.32 (MSA column containing the same amino acid on each line). See -k, --min ic in the manual for details."/>
+
+
+		<conditional name="match_state_params">
+            		<param name="set_max_aln_length" type="select" label="Maximal alignment length" help="Maximal multiple sequence alignment length for every cluster. Can be either user defined or specify automatically based on mean sequence length. See -j, --max aln length in the manual for details.">
+              			<option value="auto">Auto detection</option>
+              			<option value="set">Set manually</option>
+            		</param>
+            		<when value="auto" />
+            		<when value="set">
+              			<param name="max_aln_length" type="integer" value="24" min="0" label="Maximal alignment length" help="The maximal number of multiple sequence alignment columns for every cluster." />
+			</when>
+		</conditional>
+
+		<param name="max_inner_gaps" type="integer" value="0" min="0" label="Maximum number of inner gaps" help="Maximum number of inner gaps in any line of any cluster's multiple sequence alignment. See -u, --max inner gaps in the manual for details."/>
+
+		<conditional name="extension_increase_length">
+            		<param name="set_max_aln_length" type="select" label="Can MSA length be increased during extension step?" help="By default, only cluster merging can increase cluster's multiple sequence alignment length. Setting this option to 'Yes' will allow also sequence insertions to icrease the MSA length. See -q, --extension increase length in the manual for details.">
+				<option value="false">No</option>              
+				<option value="true">Yes</option>
+            		</param>
+            		<when value="true" />
+            		<when value="false" />
+		</conditional>
+
+		<param name="min_correlation" type="float" value="-1.0" min="-1.0" max="1.0" label="Min correlation" help="Minimal correlation of label profiles within a cluster. -1 means no correlation limit. See -C, --min correlation in the manual for details"/>
+
+
+	</when>
+</conditional>
+
+</inputs>
+
+   <outputs>  
+       <data format="tsv" name="output_clusters" />
+	<data format="tsv" name="output_sequences" />
+	<data format="tsv" name="output_sequences_ordered" />
+   </outputs>
+
+  <requirements>
+        <requirement type="set_environment">HHLIB</requirement>
+		<requirement type="set_environment">HAMMOCK_JAR</requirement>
+		<requirement type="set_environment">MATRIX_PATH</requirement>
+		<requirement type="package" version="1.2.0">clustalomega</requirement>
+		<requirement type="package" version="3.1b2">hmmer</requirement>
+		<requirement type="package" version="2.0.16">hhsuite</requirement>
+  </requirements>
+
+
+<tests>
+ 	<test>
+		<param name="input" value="input.fa" />
+		<param name="advanced_initial_params.max_shift" value="3" />
+		<param name="advanced_initial_params.shift_penalty" value="0" />
+		<param name="advanced_initial_params.scoring_matrix" value="blosum62" />
+		<param name="advanced_hmm_params.min_match_states" value="4" />
+		<param name="advanced_hmm_params.min_ic " value="1.2" />
+		<param name="advanced_hmm_params.max_gap_proportion" value="0.05" />
+		<param name="advanced_hmm_params.max_inner_gaps" value="0" />
+
+		<output name="output_clusters" file="output_clusters.csv" />     
+		<output name="output_sequences" file="output_sequences.csv" />     
+	</test>
+</tests>
+
+
+
+<help>
+
+
+**HAMMOCK version 1.1.1**
+
+**Hammock overview**
+
+Hammock performs peptide sequence clustering. It is able to identify clusters of sequences sharing a sequence motif within big datasets. For news, documentation and other available versions, see http://www.recamo.cz/en/software/hammock-cluster-peptides/
+
+------
+
+.. class:: infomark
+
+**Citation**
+Please cite: 
+
+Krejci, Adam, et al. "Hammock: a hidden Markov model-based peptide clustering algorithm to identify protein-interaction consensus motifs in large datasets." Bioinformatics 32.1 (2016): 9-16.
+
+------
+
+**Input format**
+
+Hammock accepts fasta files. For basic work, fasta description lines (those starting with ">") may contain virtually anything. For work with the concept of sequence labels, description line should be in this form: 
+
+  | >id|count|label
+
+an example of two records in this format:
+
+  | >1|42|label1
+  | RSPIVRQLPSLP
+  | >2|58|label2
+  | GSWVVDISNVED
+
+For more detailed description of the label concept and input format, see the documentation_.
+
+------
+
+**Outputs**
+
+Hammock returns three files, all of them are tab-separated tables.
+
+The first is the cluster overview file. It contains one line for each resulting cluster plus header. Columns are: 
+
+cluster_id main_sequence sum label1 label2 label3 ...
+
+  | cluster_id: Cluster's unique numeric identifier.
+  | main_sequence: The most popular (appearing in the highest number of copies) sequence of this cluster
+  | sum: Total count of all sequences in this cluster (sum over all labels)
+  | label1, label2 etc. Counts of sequences with particular labels
+
+
+The second file provides more detailed information. It contains one line for each clustered (unique) sequence plus header. The sequences are ordered according to their presence in clusters, from the largest cluster and within a cluster, from the most abundant sequence.
+
+Columns are: 
+
+cluster_id sequence alignment sum label1 label2 label3 ...
+
+  | cluster_id: Id of the cluster this sequence belongs to
+  | sequence: Amino acid sequence of this peptide
+  | alignment: Aligned amino acid sequence of this peptide (part of cluster's multiple sequence alignment)
+  | sum: Total count of copies of this sequence (sum over all labels)
+  | label1, label2 etc. Counts of copies with particular labels
+
+
+The third file is the same as the second file, with two differences: it also contains sequences not belonging to any cluster (these have "NA" in the cluster_id column) and the order of the sequences in this file is the same as their order in the input fasta file.
+
+------
+
+**Parameters**
+Default and auto-detected parameters have been carefully tuned and tested to work well with several datasets, they are especially suited for short peptides from phage display experiments. Neverheless, there is no such thing as universal rules suitable for every dataset - parameter understanding and tuning may be needed. For more detailed description of parameters, see the documentation_.
+
+.. _documentation: http://www.recamo.cz/userfiles/file/Software/Hammock/Hammock-manual.pdf
+
+
+</help>
+
+</tool>

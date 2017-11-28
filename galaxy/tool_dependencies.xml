@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<tool_dependency>
+        <package name="clustalomega" version="1.2.0">
+            <install version="1.0">
+				<actions_group>
+					<actions architecture="x86_64" os="linux">
+						<action type="move_file">
+       	            		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/clustalo-1.2.0-Ubuntu-x86_64</source>
+       	            		<destination>$INSTALL_DIR</destination>
+       		         	</action>
+						<action type="shell_command">sed -i "s%clustalOmegaCommand=clustalo%clustalOmegaCommand=$INSTALL_DIR/clustalo-1.2.0-Ubuntu-x86_64%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+					</actions>
+					<actions architecture="x86_64" os="darwin">
+						<action type="move_file">
+                   			<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/clustal-omega-1.2.0-macosx</source>
+                 	  		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="shell_command">sed -i '' -e "s%clustalOmegaCommand=clustalo%clustalOmegaCommand=$INSTALL_DIR/clustal-omega-1.2.0-macosx%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+					</actions>
+				</actions_group>
+			</install>
+		</package>
+
+        <package name="hmmer" version="3.1b2">
+            <install version="1.0">
+				<actions_group>
+                    <actions architecture="x86_64" os="linux">
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/hmmbuild</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/hmmsearch</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="shell_command">sed -i "s%hmmbuildCommand=hmmbuild%hmmbuildCommand=$INSTALL_DIR/hmmbuild%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i "s%hmmsearchCommand=hmmsearch%hmmsearchCommand=$INSTALL_DIR/hmmsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+					</actions>
+                    <actions architecture="x86_64" os="darwin">
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/hmmbuild</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/hmmsearch</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="shell_command">sed -i '' -e "s%hmmbuildCommand=hmmbuild%hmmbuildCommand=$INSTALL_DIR/hmmbuild%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i '' -e "s%hmmsearchCommand=hmmsearch%hmmsearchCommand=$INSTALL_DIR/hmmsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+					</actions>
+				</actions_group>
+			</install>
+		</package>
+
+        <package name="hhsuite" version="2.0.16">
+            <install version="1.0">
+				<actions_group>
+                    <actions architecture="x86_64" os="linux">
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/hhmake</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/hhsearch</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/linux/lib</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="shell_command">sed -i "s%hhmakeCommand=hhmake%hhmakeCommand=$INSTALL_DIR/hhmake%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i "s%hhsearchCommand=hhsearch%hhsearchCommand=$INSTALL_DIR/hhsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i "s%reformatCommand=reformat.pl%reformatCommand=$INSTALL_DIR/lib/hh/scripts/reformat.pl%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="set_environment">
+							<environment_variable name="HHLIB" action="set_to">$INSTALL_DIR/lib/hh</environment_variable>   
+						</action>
+					</actions>
+                    <actions architecture="x86_64" os="darwin">
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/hhmake</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/hhsearch</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="move_file">
+                    		<source>$REPOSITORY_INSTALL_DIR/external_tools/darwin/lib</source>
+                    		<destination>$INSTALL_DIR</destination>
+                		</action>
+						<action type="shell_command">sed -i '' -e "s%hhmakeCommand=hhmake%hhmakeCommand=$INSTALL_DIR/hhmake%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i '' -e "s%hhsearchCommand=hhsearch%hhsearchCommand=$INSTALL_DIR/hhsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="shell_command">sed -i '' -e "s%reformatCommand=reformat.pl%reformatCommand=$INSTALL_DIR/lib/hh/scripts/reformat.pl%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
+						<action type="set_environment">
+							<environment_variable name="HHLIB" action="set_to">$INSTALL_DIR/lib/hh</environment_variable>   
+						</action>
+					</actions>
+				</actions_group>
+			</install>
+		</package>
+
+
+
+    <set_environment version="1.0">
+		<environment_variable name="HAMMOCK_JAR" action="set_to">$REPOSITORY_INSTALL_DIR/Hammock/dist/Hammock.jar</environment_variable>
+		<environment_variable name="MATRIX_PATH" action="set_to">$REPOSITORY_INSTALL_DIR/Hammock/matrices/</environment_variable>  
+    </set_environment>
+</tool_dependency>
