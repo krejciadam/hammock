@@ -5,7 +5,6 @@
 #hmmsearchCommand=
 #hhmakeCommand=
 #hhsearchCommand=
-#reformatCommand=
 #Directory for all temporal files. Define full path if needed. Default (not specified): /tmp
 #tempDirectory=
 #Temporal files subdirectories. Define full paths if needed. Default (not specified): directories in tempDirectory/Hammock_temp/[time]/
