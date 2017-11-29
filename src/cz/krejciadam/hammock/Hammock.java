@@ -67,6 +67,7 @@ public class Hammock {
     public static int seed = 42;
     public static final String COUNT_MATRIX_FILE = PARENT_DIR + SEPARATOR_CHAR + "settings" + SEPARATOR_CHAR + "misc" + SEPARATOR_CHAR + "blosum62.freq_rownorm";
     public static String empiricalProbabsFile = null;
+    public static String tempDirectory = "/tmp";
     
     //clustering
     private static String additionalSequencesPath = null;
@@ -296,6 +297,7 @@ public class Hammock {
         System.err.println("-d, --output_directory <directory>\n\tA directory to store all output files in\n");
         System.err.println("-t, --threads <int>\n\tThe number of threads to use\n");
         System.err.println("-l, --labels <str,str,str...>\n\tA list of sequence labels to use\n");
+        System.err.println("--temp <directory> \n\t A directory to store the temporal files in. Default: \\tmp");
         System.err.println("\n------parameters specific for greedy and clinkege modes------\n");
         System.err.println("-f, --file_format <[fasta,tab]>\n\tThe file format of input file specified by -i\n");
         System.err.println("-m, --matrix <file>\n\tA path to a substitution matrix file\n");
@@ -918,6 +920,10 @@ public class Hammock {
             if (args[i].equals("--use_clinkage")){
                 useClinkage = true;
             }  
+            
+            if (args[i].equals("--temp")){
+                tempDirectory = args[i + 1];
+            }
         }
     }
 

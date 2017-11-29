@@ -6,6 +6,7 @@
 \usepackage{filecontents}
 \usepackage[numbers]{natbib}
 \usepackage{bibentry}
+\usepackage{hyperref}
 \nobibliography*
 \bibliographystyle{plainnat}
 \relpenalty=9999
@@ -422,6 +423,10 @@ These parameters may be used when any of 4 possible modes is invoked.
 
 \textit{Default}: All labels are used. The order in output files is from the most abundant label to the least abundant. 
 
+\item[--temp \rm \textlangle \textit{directory}\textrangle] A directory to store the temporal files in. Note that this option is overridden by the settings.prop file, if corresponding lines are present. The option is useful especially in supercomputing environments when appropriate temporal files storage paths are allocated dynamically. The directory has to be writable and faster file systems are preferred, as Hammock might generate many small temporal files.
+
+\textit{Default}: /tmp
+
 	
 \end{description}
 
@@ -652,7 +657,7 @@ HHSuite's hhmake file as: \texttt{Hammock/hhsuite-2.0.16/bin/hhmake}\newline
 HHSuite's hhsearch file as: \texttt{Hammock/hhsuite-2.0.16/bin/hhsearch}\newline
 
 \subsubsection{Paths to temporal files}
-During each run, Hammock generates and deletes several types of temporal files. By default, all temporal files are placed in subfolders of \texttt{/tmp/Hammock\_temp\_[time]} folder. In \texttt{settings.prop} file, it is possible to change master temporal directory location from \texttt{/tmp} to some other location, as well as to specify locations of particualr temporal subdirectories separately (e.g. directory where MSAs are stored). Note that if temporal subdirectories already exist at the beginning of Hammock run, their contents are deleted. 
+During each run, Hammock generates and deletes several types of temporal files. By default, all temporal files are placed in subfolders of \texttt{/tmp/Hammock\_temp\_[time]} folder. The location of the master temporal files directory can be changed using the \texttt{--temp} switch. Also, in \texttt{settings.prop} file, it is possible to change the master temporal directory, as well as to specify locations of particular temporal subdirectories separately (e.g. the directory where MSAs are stored). Any settings present (uncommented) in the settings.prop file overrides the \texttt{--temp} switch. Note that if temporal subdirectories already exist at the beginning of a Hammock run, their contents are deleted. Be sure to set the temp directory path so that the directory is writable.
 
  Hammock may generate up to thousands of (generally very small) temporal files in each run, depending on input size and complexity.
 

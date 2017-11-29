@@ -86,7 +86,7 @@ public class Settings {
 
             List<String> directoriesToCreate = new ArrayList<>();
 
-            String tempDirectory = properties.getProperty("tempDirectory", "/tmp");
+            String tempDirectory = properties.getProperty("tempDirectory", Hammock.tempDirectory);
             tempPath = tempDirectory + separatorChar + tempName;
             directoriesToCreate.add(tempPath);
             fastaDirectory = properties.getProperty("fastaDirectory", tempPath + separatorChar + "fasta" + separatorChar);
