@@ -31,18 +31,18 @@ import java.util.concurrent.Executors;
  */
 public class Hammock {
 
-    public static final char separatorChar = File.separatorChar; //system separator
-    public static final String csvSeparator = "\t";
-    private static final String parentDir = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
+    public static final char SEPARATOR_CHAR = File.separatorChar; //system separator
+    public static final String CSV_SEPARATOR = "\t";
+    private static final String PARENT_DIR = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
-    private static final String version = "1.1.1";
+    private static final String VERSION = "1.1.1";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
     public static int nThreads = 4;
     private static List<String> labels = null;
-    private static String matrixFile = parentDir + separatorChar + "matrices" + separatorChar + "blosum62.txt";
+    private static String matrixFile = PARENT_DIR + SEPARATOR_CHAR + "matrices" + SEPARATOR_CHAR + "blosum62.txt";
     public static int[][] scoringMatrix = null;
 
     private static String labelString = null;
@@ -63,8 +63,9 @@ public class Hammock {
     private static String inputStatistics;
     private static String finalAlnFolder;
     public static Logger logger;
+    public static Logger errorLogger = new Logger(null, false); //Only write to stderr until initialized
     public static int seed = 42;
-    public static final String countMatrixFile = parentDir + separatorChar + "settings" + separatorChar + "misc" + separatorChar + "blosum62.freq_rownorm";
+    public static final String COUNT_MATRIX_FILE = PARENT_DIR + SEPARATOR_CHAR + "settings" + SEPARATOR_CHAR + "misc" + SEPARATOR_CHAR + "blosum62.freq_rownorm";
     public static String empiricalProbabsFile = null;
     
     //clustering
@@ -137,45 +138,32 @@ public class Hammock {
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
             parseArgs(args);
+        } catch (CLIException e){
+            errorLogger.logAndStderr("Error in command line arguments: " + e.getMessage());
         } catch (FileFormatException e) {
-            logger.logAndStderr("Error. Probably wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
+            errorLogger.logAndStderr("Error. Probably wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
-            logger.logAndStderr(errors.toString());
-            if (inGalaxy) {
-                System.err.println("Error. Probably wrong input file format. Run with --help for a brief description of command line parameters. Trace: \n");
-                System.err.println(errors.toString());
-            }
+            errorLogger.logAndStderr(errors.toString());
         } catch (NullPointerException e) {
-            logger.logAndStderr("Error. Maybe wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
+            errorLogger.logAndStderr("Error. Maybe wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
-            logger.logAndStderr(errors.toString());
-            if (inGalaxy) {
-                System.err.println("Error. Maybe wrong input file format? Run with --help for a brief description of command line parameters. Trace: \n");
-                System.err.println(errors.toString());
-            }
+            errorLogger.logAndStderr(errors.toString());
         } catch (DataException e) {
-            logger.logAndStderr("Error. Maybe wrong input file format or wrong set of labels? Run with --help for a brief description of command line parameters. Trace: \n");
+            errorLogger.logAndStderr("Error. Maybe wrong input file format or wrong set of labels? Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
-            logger.logAndStderr(errors.toString());
-            if (inGalaxy) {
-                System.err.println("Error. Maybe wrong input file format or wrong set of labels? Run with --help for a brief description of command line parameters. Trace: \n");
-                System.err.println(errors.toString());
-            }
+            errorLogger.logAndStderr(errors.toString());
         } catch (Exception e) {
-            logger.logAndStderr("Error. Run with --help for a brief description of command line parameters. Trace: \n");
+            errorLogger.logAndStderr("Error. Run with --help for a brief description of command line parameters. Trace: \n");
             StringWriter errors = new StringWriter();
             e.printStackTrace(new PrintWriter(errors));
-            logger.logAndStderr(errors.toString());
-            if (inGalaxy) {
-                System.err.println("Error. Run with --help for a brief description of command line parameters. Trace: \n");
-                System.err.println(errors.toString());
+            errorLogger.logAndStderr(errors.toString());
+        } finally{
+            if (threadPool != null) {
+                threadPool.shutdown();
             }
-        }
-        if (threadPool != null) {
-            threadPool.shutdown();
         }
     }
 
@@ -190,10 +178,9 @@ public class Hammock {
      * @throws ExecutionException
      * @throws Exception
      */
-    private static void parseArgs(String[] args) throws IOException, FileFormatException, HammockException, InterruptedException, ExecutionException, Exception {
+    private static void parseArgs(String[] args) throws IOException, FileFormatException, HammockException, InterruptedException, ExecutionException, CLIException, Exception {
         if (args.length < 1) {
-            System.err.println("First argument must be a command. Run \"java -jar Hammock.jar --help\" for more info.");
-            return;
+            throw new CLIException("First argument must be a command. Run \"java -jar Hammock.jar --help\" for more info.");
         }
 
         if (args[0].equals("--help") || args[0].equals("-help") || args[0].equals("help") || args[0].equals("-h") || args[0].equals("-H")) {
@@ -209,7 +196,7 @@ public class Hammock {
             fullClustering = false;
             parseCommonArgs(args);
             if (inGalaxy) {
-                throw new DataException("Error. Can't run in cluster mode in Galaxy");
+                throw new CLIException("Error. Can't run in cluster mode in Galaxy");
             }
             parseClusteringArgs(args);
             if ((checkCommonArgs()) && (checkClusteringArgs())) {
@@ -226,7 +213,7 @@ public class Hammock {
             fullClustering = false;
             parseCommonArgs(args);
             if (inGalaxy) {
-                throw new DataException("Error. Can't run in greedy mode in Galaxy");
+                throw new CLIException("Error. Can't run in greedy mode in Galaxy");
             }
             parseGreedyArgs(args);
             if (checkCommonArgs() && checkGreedyOrClinkageArgs()) {
@@ -245,7 +232,7 @@ public class Hammock {
             fullClustering = false;
             parseCommonArgs(args);
             if (inGalaxy) {
-                throw new DataException("Error. Can't run in clinkage mode in Galaxy");
+                throw new CLIException("Error. Can't run in clinkage mode in Galaxy");
             }
             parseClinkageArgs(args);
             if (checkCommonArgs() && checkGreedyOrClinkageArgs()) {
@@ -291,8 +278,7 @@ public class Hammock {
             runCompare();
             return;
         }
-
-        System.err.println("First argument must be a command. Run \"java -jar Hammpck.jar --help\" for more info.");
+        throw new CLIException("First argument must be a command. Run \"java -jar Hammpck.jar --help\" for more info.");
     }
 
     /**
@@ -300,7 +286,7 @@ public class Hammock {
      */
     private static void displayHelp() {
         System.err.println("HAMMOCK - a Hidden Markov Model based peptide sequence clustering tool. For more details and examples, see manual at : http://www.recamo.cz/en/software/hammock-cluster-peptides/");
-        System.err.println("\nVersion: " + version + "\n");
+        System.err.println("\nVersion: " + VERSION + "\n");
         System.err.println("\n------MANUAL------\n");
         System.err.println("Synopsis: java -jar Hammock.jar <mode> <param1> <param2> <param3>...");
         System.err.println("\nModes: \n");
@@ -359,7 +345,7 @@ public class Hammock {
      */
     private static void runFull() throws IOException, HammockException, FileFormatException, InterruptedException, ExecutionException, Exception {
         if (inGalaxy) {
-            initialClustersSequencesCsv = Settings.getInstance().getTempDirectory() + separatorChar + "greedy_aligned_cl";
+            initialClustersSequencesCsv = Settings.getInstance().getTempDirectory() + SEPARATOR_CHAR + "greedy_aligned_cl";
             finalClustersCsv = galaxyFinalClustersCsv;
             finalSequenceCsv = galaxyFinalSequenceCsv;
             finalSequenceOrderedCsv = galaxyFinalSequenceCsvOrdered;
@@ -613,35 +599,18 @@ public class Hammock {
         }
         if (assignThresholdSequence == null) {
             assignThresholdSequence = setAssignThresholdSequence(inClusters);
-            logger.logAndStderr("Assign threshold sequence not set. Setting automatically to: ");
-            StringBuilder seq = new StringBuilder();
-            for (double th : assignThresholdSequence) {
-                seq.append(th).append(",");
-            }
-            logger.logAndStderr(seq.toString());
         }
         if (overlapThresholdSequence == null) {
             overlapThresholdSequence = setOverlapThresholdSequence(inClusters);
-            StringBuilder seq = new StringBuilder();
-            for (double th : overlapThresholdSequence) {
-                seq.append(th).append(",");
-            }
-            logger.logAndStderr(seq.toString());
         }
         if (mergeThresholdSequence == null) {
             mergeThresholdSequence = setHhMergeThresholdSequence(inClusters);
-            StringBuilder seq = new StringBuilder();
-            for (double th : mergeThresholdSequence) {
-                seq.append(th).append(",");
-            }
-            logger.logAndStderr(seq.toString());
         }
 
         if ((overlapThresholdSequence.length != assignThresholdSequence.length)
                 || (mergeThresholdSequence.length != assignThresholdSequence.length)) {
-            logger.logAndStderr("Error. Merge threshold sequence or overlap threshold "
+            throw new CLIException("Error. Merge threshold sequence or overlap threshold "
                     + "sequence do not have the same length as assign threshold sequence.");
-            return;
         }
 
         fullHHClustering = new boolean[overlapThresholdSequence.length];
@@ -683,7 +652,7 @@ public class Hammock {
         if (!inGalaxy) {
             for (Cluster cl : toCluster) {
                 FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + cl.getId() + ".aln",
-                        initialAlnFolder + separatorChar + cl.getId() + ".aln");
+                        initialAlnFolder + SEPARATOR_CHAR + cl.getId() + ".aln");
             }
         }
 
@@ -717,8 +686,8 @@ public class Hammock {
         }
         if (!inGalaxy) {
             for (Cluster cl : resultingClusters) {
-                FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + separatorChar + cl.getId() + ".aln",
-                        finalAlnFolder + separatorChar + cl.getId() + ".aln");
+                FileIOManager.copyFile(Settings.getInstance().getMsaDirectory() + SEPARATOR_CHAR + cl.getId() + ".aln",
+                        finalAlnFolder + SEPARATOR_CHAR + cl.getId() + ".aln");
             }
         }
         logger.logAndStderr("Results in: " + finalSequenceCsv);
@@ -732,7 +701,7 @@ public class Hammock {
             int omitted = 0;
             for (Cluster cl : resultingClusters){
                 if (cl.getUniqueSize() > 1){
-                    paths.add(finalAlnFolder + separatorChar + cl.getId() + ".aln");
+                    paths.add(finalAlnFolder + SEPARATOR_CHAR + cl.getId() + ".aln");
                 } else{
                     omitted += 1;
                 }
@@ -1242,15 +1211,13 @@ public class Hammock {
      */
     private static boolean checkCommonArgs() throws IOException, HammockException {
         if (inputFileName == null) {
-            System.err.println("Error. Parameter input file (-i or --input) missing with no default.");
-            return false;
+            throw new CLIException("Error. Parameter input file (-i or --input) missing with no default.");
         }
         
         if ((workingDirectory != null) && (!inGalaxy)){
             File file = new File(workingDirectory);
             if (file.exists()){
-                System.err.println("Error. Output directory exists. Exiting to prevent data loss.");
-                return false;
+                throw new CLIException("Error. Output directory exists. Exiting to prevent data loss.");
             }else{
                 file.mkdir();
             }
@@ -1258,9 +1225,9 @@ public class Hammock {
 
         if ((workingDirectory == null) && (!inGalaxy)) {
             int i = 1;
-            String name = parentDir + separatorChar + "dist" + separatorChar + "Hammock_result_" + i;
+            String name = PARENT_DIR + SEPARATOR_CHAR + "dist" + SEPARATOR_CHAR + "Hammock_result_" + i;
             while (i < 9999) {
-                name = parentDir + separatorChar + "dist" + separatorChar + "Hammock_result_" + i;
+                name = PARENT_DIR + SEPARATOR_CHAR + "dist" + SEPARATOR_CHAR + "Hammock_result_" + i;
                 File file = new File(name);
                 if (!(file.exists())) {
                     file.mkdir();
@@ -1273,12 +1240,13 @@ public class Hammock {
         }
         
         if (!inGalaxy) {
-            logger = new Logger(workingDirectory + separatorChar + "run.log", false);
+            logger = new Logger(workingDirectory + SEPARATOR_CHAR + "run.log", false);
+            errorLogger = logger;
         } else {
-            logger = new Logger(null, true);
+            logger = new Logger(null, true); //errorLogger still writers to stderr
         }
 
-        logger.logAndStderr("\nHammock version " + version + " Run with --help for a brief description of command line parameters.\n");
+        logger.logAndStderr("\nHammock version " + VERSION + " Run with --help for a brief description of command line parameters.\n");
         
         if (labelString != null) {
             labels = new ArrayList<>();
@@ -1287,15 +1255,15 @@ public class Hammock {
         }
 
         random = new Random(seed);
-        initialClustersSequencesCsv = workingDirectory + separatorChar + "initial_clusters_sequences.tsv";
-        initialClustersSequencesOrderedCsv = workingDirectory + separatorChar + "initial_clusters_sequences_original_order.tsv";
-        initialClusters = workingDirectory + separatorChar + "initial_clusters.tsv";
-        finalRemainingSequences = workingDirectory + separatorChar + "final_remaining_sequences.fa";
-        finalSequenceCsv = workingDirectory + separatorChar + "final_clusters_sequences.tsv";
-        finalSequenceOrderedCsv = workingDirectory + separatorChar + "final_clusters_sequences_original_order.tsv";
-        finalClustersCsv = workingDirectory + separatorChar + "final_clusters.tsv";
-        compareResultsCsv = workingDirectory + separatorChar + "comparison_results.tsv";
-        inputStatistics = workingDirectory + separatorChar + "input_statistics.tsv";
+        initialClustersSequencesCsv = workingDirectory + SEPARATOR_CHAR + "initial_clusters_sequences.tsv";
+        initialClustersSequencesOrderedCsv = workingDirectory + SEPARATOR_CHAR + "initial_clusters_sequences_original_order.tsv";
+        initialClusters = workingDirectory + SEPARATOR_CHAR + "initial_clusters.tsv";
+        finalRemainingSequences = workingDirectory + SEPARATOR_CHAR + "final_remaining_sequences.fa";
+        finalSequenceCsv = workingDirectory + SEPARATOR_CHAR + "final_clusters_sequences.tsv";
+        finalSequenceOrderedCsv = workingDirectory + SEPARATOR_CHAR + "final_clusters_sequences_original_order.tsv";
+        finalClustersCsv = workingDirectory + SEPARATOR_CHAR + "final_clusters.tsv";
+        compareResultsCsv = workingDirectory + SEPARATOR_CHAR + "comparison_results.tsv";
+        inputStatistics = workingDirectory + SEPARATOR_CHAR + "input_statistics.tsv";
 
         threadPool = Executors.newFixedThreadPool(nThreads);
         scoringMatrix = FileIOManager.loadScoringMatrix(matrixFile);    
@@ -1306,23 +1274,20 @@ public class Hammock {
      * Checks if command line arguments for greedy mode are sane
      *
      */
-    private static boolean checkGreedyOrClinkageArgs() {
+    private static boolean checkGreedyOrClinkageArgs() throws CLIException {
         if (!((inputType.equals("fasta")) || (inputType.equals("seq")) || (inputType.equals("tab")))) {
-            System.err.println("Error. Parameter -f value may be either \"fasta\", \"seq\" or \"tab\". No other values are allowed");
-            return false;
+            throw new CLIException("Error. Parameter -f value may be either \"fasta\", \"seq\" or \"tab\". No other values are allowed");
         }
         return true;
-
     }
 
     /**
      * Checks if command line arguments for cluster mode are sane
      *
      */
-    private static boolean checkClusteringArgs() throws IOException, InterruptedException {
+    private static boolean checkClusteringArgs() throws IOException, InterruptedException, CLIException {
         if (!checkEnvVariable("HHLIB")) {
-            System.err.println("Error. Environmental variable \"HHLIB\" not set. Set it so that it contains path to: hhsuite_folder/lib/hh ");
-            return false;
+            throw new CLIException("Error. Environmental variable \"HHLIB\" not set. Set it so that it contains path to: hhsuite_folder/lib/hh ");
         }
         if (!inGalaxy) {
             checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega");
@@ -1346,26 +1311,25 @@ public class Hammock {
         }
 
         if (minIc > 4.3219280949) {
-            System.err.println("Error. Minimal informationc content (-k) can't be more than 4.3219280949");
-            return false;
+            throw new CLIException("Error. Minimal informationc content (-k) can't be more than 4.3219280949");
         }
 
         if (!inGalaxy) {
             //Create directories for alignment files
-            String name = workingDirectory + separatorChar + "alignments_initial";
+            String name = workingDirectory + SEPARATOR_CHAR + "alignments_initial";
             File file = new File(name);
             if (!(file.exists())) {
                 file.mkdir();
             }
             initialAlnFolder = name;
-            name = workingDirectory + separatorChar + "alignments_final";
+            name = workingDirectory + SEPARATOR_CHAR + "alignments_final";
             file = new File(name);
             if (!(file.exists())) {
                 file.mkdir();
             }
             finalAlnFolder = name;
 
-            name = workingDirectory + separatorChar + "alignments_other";
+            name = workingDirectory + SEPARATOR_CHAR + "alignments_other";
             file = new File(name);
             if (!(file.exists())) {
                 file.mkdir();
@@ -1377,7 +1341,6 @@ public class Hammock {
         } else{
             innerGapsAllowed = false;
         }
-
         //delete contents of folders in temp
         FileIOManager.deleteFolderContents(Settings.getInstance().getFastaDirectory());
         FileIOManager.deleteFolderContents(Settings.getInstance().getHhDirectory());
@@ -1502,6 +1465,7 @@ public class Hammock {
      * @return
      */
     private static double[] setAssignThresholdSequence(Collection<Cluster> clusters) {
+        logger.logAndStderr("Assign threshold not set. Setting automatically to: ");
         double meanLength = getClusterMeanSequenceLength(clusters);
         double[] result;
         if (relativeHmmScore) {
@@ -1512,6 +1476,7 @@ public class Hammock {
         for (int i = 0; i < result.length; i++) {
             result[i] = (double) Math.round(result[i] * 100) / 100;
         }
+        logger.logAndStderr(formatDoubleSequence(result).toString());
         return result;
     }
 
@@ -1542,6 +1507,7 @@ public class Hammock {
             }
             result[assignThresholdSequence.length - 1] = 0.0; //last zero for full clustering
         }
+        logger.logAndStderr(formatDoubleSequence(result).toString());
         return result;
     }
 
@@ -1571,7 +1537,19 @@ public class Hammock {
                 result[i] = assignThresholdSequence[i] * 1.0;
             }
         }
+        logger.logAndStderr(formatDoubleSequence(result).toString());
         return result;
+    }
+    
+    private static StringBuilder formatDoubleSequence(double[] numbers){
+        StringBuilder seq = new StringBuilder();
+            for (int i = 0; i < numbers.length; i++) {
+                seq.append(numbers[i]);
+                if (i < numbers.length - 1){
+                    seq.append(",");
+                }
+            }
+          return(seq);
     }
 
     /**

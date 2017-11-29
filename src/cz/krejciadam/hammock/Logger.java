@@ -21,6 +21,11 @@ public class Logger {
     private Calendar calendar;
     private final boolean dummyLogger;
 
+    /**
+     * Constructor
+     * @param filePath File to save logs into. If null, Logger will not save messages to any file.
+     * @param dummyLogger If true, logger will not write any messages to any output stream or file.
+     */
     public Logger(String filePath, boolean dummyLogger) {
         this.filePath = filePath;
         this.dummyLogger = dummyLogger;

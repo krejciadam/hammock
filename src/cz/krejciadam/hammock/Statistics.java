@@ -37,7 +37,7 @@ public class Statistics {
         }
         background = Collections.unmodifiableMap(BACKGROUND);
         try {
-            frequencyMatrix = FileIOManager.loadFrequencyMatrix(Hammock.countMatrixFile);
+            frequencyMatrix = FileIOManager.loadFrequencyMatrix(Hammock.COUNT_MATRIX_FILE);
         } catch (IOException ex) {
             Hammock.logger.logAndStderr("Error. Can't load frequency matrix");
             System.exit(1);

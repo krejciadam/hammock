@@ -124,7 +124,7 @@ public class IterativeHmmClusterer {
                 String path;
                 File dir;
                 if (!Hammock.inGalaxy) {
-                    path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_assignment";
+                    path = Hammock.workingDirectory + Hammock.SEPARATOR_CHAR + "alignments_other" + Hammock.SEPARATOR_CHAR + "round_" + (round + 1) + "_after_assignment";
                     dir = new File(path);
                     dir.mkdir();
                     for (Cluster cl : currentState.getClusters()) {
@@ -151,7 +151,7 @@ public class IterativeHmmClusterer {
                 currentState = new AssignmentResult(new ArrayList<>(currentClusters), currentState.getDatabaseSequences());
 
                 if (!Hammock.inGalaxy) {
-                    path = Hammock.workingDirectory + Hammock.separatorChar + "alignments_other" + Hammock.separatorChar + "round_" + (round + 1) + "_after_merging";
+                    path = Hammock.workingDirectory + Hammock.SEPARATOR_CHAR + "alignments_other" + Hammock.SEPARATOR_CHAR + "round_" + (round + 1) + "_after_merging";
                     dir = new File(path);
                     dir.mkdir();
                     for (Cluster cl : currentState.getClusters()) {

@@ -230,13 +230,13 @@ public class FileIOManager {
         List<UniqueSequence> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
             String line = reader.readLine(); //header line
-            String[] headerLine = line.split(Hammock.csvSeparator);
+            String[] headerLine = line.split(Hammock.CSV_SEPARATOR);
             List<String> labels = new ArrayList<>();
             for (int i = 1; i < headerLine.length; i++) {
                 labels.add(headerLine[i]);
             }
             while ((line = reader.readLine()) != null) {
-                List<String> splitLine = Arrays.asList(line.split(Hammock.csvSeparator));
+                List<String> splitLine = Arrays.asList(line.split(Hammock.CSV_SEPARATOR));
                 result.add(lineToUniqueSequence(splitLine.get(0), splitLine.subList(1, splitLine.size()), labels));
             }
         } catch (IOException e) {
@@ -306,7 +306,7 @@ public class FileIOManager {
     private static List<Cluster> loadClusterDetailsFromCsv(String fileName, Set<Integer> alignmentsToGet, boolean loadAllAlignments) throws FileFormatException, IOException {
         List<Cluster> result = new ArrayList<>();
         try (BufferedReader reader = new BufferedReader(new FileReader(new File(fileName)))) {
-            List<String> header = new ArrayList<>(Arrays.asList(reader.readLine().split(Hammock.csvSeparator)));
+            List<String> header = new ArrayList<>(Arrays.asList(reader.readLine().split(Hammock.CSV_SEPARATOR)));
             int alignmentIndex = header.indexOf("alignment");
             if (alignmentIndex != -1) { //to correct the next index for removing this
                 header.remove(alignmentIndex);
@@ -322,7 +322,7 @@ public class FileIOManager {
             int clusterId = -1;
             int seqIndex = 0;
             while ((line = reader.readLine()) != null) {
-                List<String> splitLine = new ArrayList<>(Arrays.asList(line.split(Hammock.csvSeparator)));
+                List<String> splitLine = new ArrayList<>(Arrays.asList(line.split(Hammock.CSV_SEPARATOR)));
                 int id = Integer.decode(splitLine.get(0));
                 if (id != clusterId) {
                     if (clusterId != -1) {  //it is not the first cluster => add the cluster
@@ -468,21 +468,21 @@ public class FileIOManager {
         List<HmmsearchSequenceHit> hitList = new ArrayList<>(hits);
         Collections.sort(hitList, Collections.reverseOrder());
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            writer.write("cluster_id" + Hammock.csvSeparator
-                    + "main_sequence" + Hammock.csvSeparator
-                    + "found_sequence" + Hammock.csvSeparator
+            writer.write("cluster_id" + Hammock.CSV_SEPARATOR
+                    + "main_sequence" + Hammock.CSV_SEPARATOR
+                    + "found_sequence" + Hammock.CSV_SEPARATOR
                     + "score");
             if (empiricalProbabs != null) {
-                writer.write(Hammock.csvSeparator + "evalue_empirical");
+                writer.write(Hammock.CSV_SEPARATOR + "evalue_empirical");
             }
             writer.write("\n");
             for (HmmsearchSequenceHit hit : hitList) {
-                writer.write(hit.getCluster().getId() + Hammock.csvSeparator
-                        + hit.getCluster().getSequences().get(0).getSequenceString() + Hammock.csvSeparator
-                        + hit.getSequence().getSequenceString() + Hammock.csvSeparator
+                writer.write(hit.getCluster().getId() + Hammock.CSV_SEPARATOR
+                        + hit.getCluster().getSequences().get(0).getSequenceString() + Hammock.CSV_SEPARATOR
+                        + hit.getSequence().getSequenceString() + Hammock.CSV_SEPARATOR
                         + hit.getScore());
                 if (empiricalProbabs != null) {
-                    writer.write(Hammock.csvSeparator + empiricalProbab(hit.getScore(), min, max, empiricalProbabs) * clusterCount * sequenceCount);
+                    writer.write(Hammock.CSV_SEPARATOR + empiricalProbab(hit.getScore(), min, max, empiricalProbabs) * clusterCount * sequenceCount);
                 }
                 writer.write("\n");
             }
@@ -514,7 +514,7 @@ public class FileIOManager {
         }
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             for (Cluster cl2 : clusters2) {
-                writer.write(Hammock.csvSeparator + cl2.getId());
+                writer.write(Hammock.CSV_SEPARATOR + cl2.getId());
             }
             for (Cluster cl1 : clusters1) {
                 writer.newLine();
@@ -524,7 +524,7 @@ public class FileIOManager {
                     if (score == null) {
                         score = -1.0;
                     }
-                    writer.write(Hammock.csvSeparator + score);
+                    writer.write(Hammock.CSV_SEPARATOR + score);
                 }
             }
         }
@@ -577,7 +577,7 @@ public class FileIOManager {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             writer.write("sequence");
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + label);
+                writer.write(Hammock.CSV_SEPARATOR + label);
             }
             writer.newLine();
             for (UniqueSequence seq : sequences) {
@@ -587,7 +587,7 @@ public class FileIOManager {
                     if (count == null) {
                         count = 0;
                     }
-                    writer.write(Hammock.csvSeparator + count);
+                    writer.write(Hammock.CSV_SEPARATOR + count);
                 }
                 writer.newLine();
             }
@@ -608,22 +608,22 @@ public class FileIOManager {
             }
         }
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            writer.write("cluster_id" + Hammock.csvSeparator + "sequence" + Hammock.csvSeparator + "alignment" + Hammock.csvSeparator + "sum");
+            writer.write("cluster_id" + Hammock.CSV_SEPARATOR + "sequence" + Hammock.CSV_SEPARATOR + "alignment" + Hammock.CSV_SEPARATOR + "sum");
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + label);
+                writer.write(Hammock.CSV_SEPARATOR + label);
             }
             writer.newLine();
             for (UniqueSequence seq : sequences) {
                 Cluster cluster = sequenceClusterMap.get(seq.getSequenceString());
                 if (cluster != null) {
-                    writer.write(cluster.getId() + Hammock.csvSeparator + seq.getSequenceString() + Hammock.csvSeparator);
+                    writer.write(cluster.getId() + Hammock.CSV_SEPARATOR + seq.getSequenceString() + Hammock.CSV_SEPARATOR);
                     if (msaMap.containsKey(seq.getSequenceString())) {
-                        writer.write(msaMap.get(seq.getSequenceString()) + Hammock.csvSeparator);
+                        writer.write(msaMap.get(seq.getSequenceString()) + Hammock.CSV_SEPARATOR);
                     } else {
-                        writer.write("NA" + Hammock.csvSeparator);
+                        writer.write("NA" + Hammock.CSV_SEPARATOR);
                     }
                 } else {
-                    writer.write("NA" + Hammock.csvSeparator + seq.getSequenceString() + Hammock.csvSeparator + "NA" + Hammock.csvSeparator);
+                    writer.write("NA" + Hammock.CSV_SEPARATOR + seq.getSequenceString() + Hammock.CSV_SEPARATOR + "NA" + Hammock.CSV_SEPARATOR);
                 }
                 writer.write("" + seq.size());
                 for (String label : labels) {
@@ -631,7 +631,7 @@ public class FileIOManager {
                     if (count == null) {
                         count = 0;
                     }
-                    writer.write(Hammock.csvSeparator + count);
+                    writer.write(Hammock.CSV_SEPARATOR + count);
                 }
                 writer.newLine();
             }
@@ -653,22 +653,22 @@ public class FileIOManager {
         List<Cluster> sortedList = new ArrayList<>(clusters);
         Collections.sort(sortedList, Collections.reverseOrder());
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
-            writer.write("cluster_id" + Hammock.csvSeparator + "main_sequence" + Hammock.csvSeparator + "sum");
+            writer.write("cluster_id" + Hammock.CSV_SEPARATOR + "main_sequence" + Hammock.CSV_SEPARATOR + "sum");
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + label);
+                writer.write(Hammock.CSV_SEPARATOR + label);
             }
             writer.newLine();
             for (Cluster cl : sortedList) {
                 List<UniqueSequence> sequences = cl.getSequences();
                 Collections.sort(sequences, Collections.reverseOrder());
-                writer.write(cl.getId() + Hammock.csvSeparator + sequences.get(0).getSequenceString() + Hammock.csvSeparator + cl.size());
+                writer.write(cl.getId() + Hammock.CSV_SEPARATOR + sequences.get(0).getSequenceString() + Hammock.CSV_SEPARATOR + cl.size());
                 Map<String, Integer> clusterCountMap = getClusterLabelsMap(cl);
                 for (String label : labels) {
                     Integer count = clusterCountMap.get(label);
                     if (count == null) {
                         count = 0;
                     }
-                    writer.write(Hammock.csvSeparator + count);
+                    writer.write(Hammock.CSV_SEPARATOR + count);
                 }
                 writer.newLine();
             }
@@ -714,17 +714,17 @@ public class FileIOManager {
         Map<String, Integer> uniqueMap = getUniqueLabelCounts(sequences, labels);
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath))) {
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + label);
+                writer.write(Hammock.CSV_SEPARATOR + label);
             }
             writer.newLine();
             writer.write("total_count");
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + totalMap.get(label));
+                writer.write(Hammock.CSV_SEPARATOR + totalMap.get(label));
             }
             writer.newLine();
             writer.write("unique_count");
             for (String label : labels) {
-                writer.write(Hammock.csvSeparator + uniqueMap.get(label));
+                writer.write(Hammock.CSV_SEPARATOR + uniqueMap.get(label));
             }
         } catch (IOException e) {
             throw new IOException(e);
