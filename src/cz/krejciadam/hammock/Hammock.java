@@ -36,7 +36,7 @@ public class Hammock {
     private static final String PARENT_DIR = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
-    private static final String VERSION = "1.1.1";
+    private static final String VERSION = "1.1.2";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
@@ -280,14 +280,16 @@ public class Hammock {
             runCompare();
             return;
         }
-        throw new CLIException("First argument must be a command. Run \"java -jar Hammpck.jar --help\" for more info.");
+        throw new CLIException("The first argument must be a mode. Run \"java -jar Hammpck.jar --help\" for more info.");
     }
 
     /**
      * Displays help in command line
      */
     private static void displayHelp() {
-        System.err.println("HAMMOCK - a Hidden Markov Model based peptide sequence clustering tool. For more details and examples, see manual at : http://www.recamo.cz/en/software/hammock-cluster-peptides/");
+        System.err.println("HAMMOCK - a Hidden Markov Model based peptide sequence clustering tool. For more details, see manual.pdf.");
+        System.err.println("\nProject's home: https://github.com/krejciadam/hammock");
+        System.err.println("Bug reports: https://github.com/krejciadam/hammock/issues");
         System.err.println("\nVersion: " + VERSION + "\n");
         System.err.println("\n------MANUAL------\n");
         System.err.println("Synopsis: java -jar Hammock.jar <mode> <param1> <param2> <param3>...");
