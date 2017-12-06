@@ -1,0 +1,24 @@
+#Lines starting with hash (#) are ignored
+#Tool commands. Define full paths if needed. By default (not specified) means locations relative to .jar file in Hammock/dist foltder
+#clustalOmegaCommand=
+#hmmbuildCommand=
+#hmmsearchCommand=
+#hhmakeCommand=
+#hhsearchCommand=
+#Directory for all temporal files. Define full path if needed. Default (not specified): /tmp
+#tempDirectory=
+#Temporal files subdirectories. Define full paths if needed. Default (not specified): directories in tempDirectory/Hammock_temp/[time]/
+#fastaDirectory=
+#msaDirectory=
+#hmmDirectory=
+#hhDirectory=
+#hmmsearchOutDirectory=
+#hhsearchOutDirectory=
+#fastaDatabaseFile=
+#Tool parameters. Generally, it is not recommended to change this section.
+clustalOmegaParameters=--wrap=999999
+hmmbuildParameters=--enone --fragthresh 1.0 --hand --wnone --amino --seed 42
+hmmsearchParameters=--nobias --F1 0.5 --F2 0.05 --F3 1e-2 --nonull2 --notextw -E 999999 --seed 42
+hmmalignParameters=--outformat selex --amino --seed 42
+hhmakeParameters=-M a2m -id 100 -diff inf -pcm 3 -nocontxt -v 0
+hhsearchParameters=-norealign -alt 1 -corr 0 -shift 0 -ssm 0 -tags -nocons -nopred -nodssp -sc 0 -v 0 -z 2 -Z 500000 -local -p 0.0 -vit -b 100.0 -E 100.0 -e 100.0 -z 100

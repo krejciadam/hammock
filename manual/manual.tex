@@ -1,0 +1,677 @@
+\documentclass[11pt, a4paper, twoside, titlepage]{article}
+\usepackage[lmargin=26mm,rmargin=26mm,tmargin=30mm,bmargin=37mm,includefoot,includehead]{geometry}
+\usepackage{enumitem}
+\usepackage{textcomp}
+\usepackage{hyperref}
+\usepackage{filecontents}
+\usepackage[numbers]{natbib}
+\usepackage{bibentry}
+\usepackage{hyperref}
+\nobibliography*
+\bibliographystyle{plainnat}
+\relpenalty=9999
+\binoppenalty=9999
+
+%\usepackage{indentfirst}
+% font size could be 10pt (default), 11pt or 12 pt
+% paper size coulde be letterpaper (default), legalpaper, executivepaper,
+% a4paper, a5paper or b5paper
+% side coulde be oneside (default) or twoside 
+% columns coulde be onecolumn (default) or twocolumn
+% graphics coulde be final (default) or draft 
+%
+% titlepage coulde be notitlepage (default) or titlepage which 
+% makes an extra page for title 
+% 
+% paper alignment coulde be portrait (default) or landscape 
+%
+% equations coulde be 
+%   default number of the equation on the rigth and equation centered 
+%   leqno number on the left and equation centered 
+%   fleqn number on the rigth and  equation on the left side
+%	
+\title{Hammock - Hidden Markov Model based clustering of short peptide sequences\\ \vspace{2 mm} {\large User's guide} \\ \vspace{2 mm} {\small version 1.1.2}}
+\author{Adam Krejci  \\
+	Masaryk Memorial Cancer Institute\\
+	Brno, Czech Republic
+%	\and 
+%	The Other Dude \\
+%	His Company / University \\
+	}
+
+\date{\today} 
+% \date{\today} date coulde be today 
+% \date{25.12.00} or be a certain date
+% \date{ } or there is no date 
+
+
+\begin{document}
+\maketitle
+
+\begin{center}
+\copyright Adam Krejci, 2015-2017 \\ \vspace{1cm}
+Available under the GNU General Public License, \\
+see \url{http://www.gnu.org/licenses/} \\ \vspace{1cm}
+News, info and downloads at: \\
+\url{http://www.recamo.cz/en/software/hammock-cluster-peptides/} \\ \vspace{1cm}
+We are happy to receive bug reports and questions. The preferred way of support is through the GitHub issues page : \\
+ \url{https://github.com/krejciadam/hammock/issues}
+
+ For direct email contact, please use: \\
+krejciadam@gmail.com
+\end{center} 
+\newpage
+
+
+
+\tableofcontents
+
+\newpage
+
+\section{Introduction}
+\label{introduction}
+Hammock is a software tool for peptide sequence clustering based upon the usage of profile Hidden Markov Models. It is especially suitable for large datasets comprising of short sequences, e.g. data obtained by NGS deep sequencing of Phage Display libraries.
+
+
+\section{Citing Hammock}
+If you find Hammock useful, please cite this article: \newline
+
+\bibentry{Krejci2015}
+
+
+
+\section{Prerequisites}
+\label{prerequisities}
+Java, version at least 1.7.0 is required. Hammock also uses 3 external tools: Clustal Omega\cite{Sievers2011}, Hmmer 3.0\citep{Finn2011} and HHSuite\citep{Soding2004}. Compiled versions of these tools are part of Hammock, but we strongly recommend to recompile them on your system, as compatibility and performance issues may rise otherwise. If you already have some of these tools installed or placed somewhere on your system, you may change the default path or command used by Hammock in the settings file (see \ref{settings.propfile} for details). 
+
+To run hhsuite, it is needed to set up en environment variable called \texttt{HHLIB} containing the path to hhsuite's \texttt{lib/hh} directory. This must be done before running Hammock. On Unix-like systems, \texttt{HHLIB} variable may be set for example this way: \newline
+
+\verb|export HHLIB=~/Hammock/hhsuite-2.0.16/lib/hh/|\\
+
+See hhsuite manual for more details.
+
+
+\section{How Hammock works}
+\label{howhammockworks}
+Hammock builds clusters gradually. Starting from single sequences, it first identifies initial clusters of very similar sequences using greedy or complete linkage clustering. After this step, several iterations of cluster extension and merging are performed.
+
+\subsection{Initial clustering}
+Initially, Hammock uses a simpler algorithm to generate groups of highly similar sequences - cluster cores. During this step, sequences are compared using a substitution matrix (controlled by \texttt{-m, --matrix} parameter, see \ref{parametersInitial}), but full alignment is not performed. Instead, sequences are aligned as solid blocks, so that alignments with inner gaps are not considered. Moreover, sequences are only allowed to be shifted relative to each other by some maximal number of positions (specified by \texttt{-x, --max\_shift} parameter, see \ref{parametersInitial}). 
+
+There are two algorithms available for initial clustering. Full complete-linkage algorithm is more precise and guarantees optimal results for specified parameters. It is though more computationally demanding and by default, it is only used for datasets of up to 10 000 unique sequences. Greedy clustering is a much faster, yet less precise algorithm used for larger datasets. You can force Hammock to use one of these algorithms with \texttt{--use\_clinkage} and \texttt{--use\_greedy} parameters. See section \ref{parametersInitial} for details.
+
+After this step, sequences are grouped into \emph{cluster cores} - rather small groups of highly similar sequences.
+
+\subsection{Iterative cluster extension and merging}
+
+The amount of cluster cores generated by initial clustering step is likely to be quite high. Therefore, Hammock only selects some of the largest cores as true cluster cores (controlled by \texttt{-a, --part\_threshold}, \texttt{-s, --size\_threshold} or \texttt{-c, --count\_threshold} parameter, see \ref{parametersCluster}). Unselected cores are "melted" back into single sequences. We will call this group of sequences the \emph{sequence pool}.
+
+Having cluster cores selected, Hammock constructs MSA and HMM for each of them. Using Hmmer's \texttt{hmmsearch} routine, it then searches the sequence pool for sequences similar to each core. Sequences similar enough (controlled by \texttt{-n, --assign\_thresholds} parameter, see \ref{parametersCluster}) are removed from the sequence pool and inserted into appropriate cluster (the one they are most similar to). We call this step the \emph{extension step}.
+
+During the extension step, some sequences may have been found to be similar to more then one cluster (the meaning of "similar" here is controlled by \texttt{-v, --overlap\_thresholds} parameter, see \ref{parametersCluster}), which means that the set of sequences similar to one cluster may have nonempty overlap with the set of sequences similar to another. This indicates that such two clusters are somewhat similar to each other themselves. If they are similar enough, Hammock will merge them into one cluster. The decision whether clusters are similar enough to be merged or not is made upon the result from HHSuite's \texttt{hhalign} routine (controlled by \texttt{-r, --merge\_thresholds} parameter, see \ref{parametersCluster}). Things may get more complicated when more than 2 clusters have their sets of similar sequences overlapping. Therefore, a special cluster-clustering scheme is used in this step, which we call the \emph{merging step}. \newline
+
+Hammock tries to grow clusters from small groups of very similar sequences to bigger groups with less similarity, sharing just some (potentially short) strong motif. To achieve that, extension step and merging step are repeated iteratively several times (3 by default) while similarity thresholds are gradually relaxed. This leads to progressive cluster growth, as the motif emerges.
+
+Apart from thresholds, there is another system to assure that resulting clusters will not become too diverse. To represent cluster with HMMs, \textit{match states} must be defined. A match state is virtually a column in a cluster's MSA which does not have too many gaps in it. In Hammock, a match state is any MSA column between the leftmost and the rightmost conserved position (This is not true if inner gaps are allowed. In that case, an inner MSA column containing gaps may lie between two match states).  You can control which columns will be marked as conserved positions by \texttt{-y, --max\_gap\_proportion} and \texttt{-k, --min\_ic} parameters and limit the minimal number of such positions by \texttt{-h, --min\_conserved\_positions} parameter. Match states are then defined accordingly. See section \ref{parametersCluster} for details. 
+
+
+
+
+\section{Files and formats}
+\label{filesandformats}
+\subsection{Input files}
+\label{inputfiles}
+In \texttt{full}, \texttt{clinkage} and \texttt{greedy} modes, Hammock uses single sequences as input. In \texttt{cluster} mode, the input consists of entire clusters.
+
+\subsubsection{Sequence input}
+There are 2 supported file formats for sequence input. The .fasta format and the .tsv (.csv) table format. Both these formats support the concept of sequence labels. 
+
+\paragraph{The sequence label concept} \label{labelConcept} In Hammock, the most basic piece of data is a unique sequence. If one unique sequence occurs in more than one copy in the original dataset, the information about the number of copies is preserved. To support more structured form of data, Hammock allows the user to define sequence labels. 
+
+A label marks a group of sequences forming some sub-dataset in the original dataset. An example of such sub-datasets is grouping the sequences from Phage display experiment according to the round of selection they were sequenced after. One unique sequence may be preset in different counts within groups with different labels. 
+
+If no label is specified, all sequences are labeled with default label \texttt{no\_label}.
+
+Labels must not contain pipe (\texttt{|}) and whitespace special characters.
+
+\paragraph{.fasta format}\label{fastaFormat}
+Sequences in classic .fasta format where each sequence is saved as a header line starting with \texttt{>} followed by one line containing the actual peptide sequence. The header line typically contains unique sequence id, but Hammock does not require the sequence id to be unique. Actually it does not require the sequence id to be even present - the only limit on the header line is that it must start with "\texttt{>}" character.
+
+One unique sequence may occur in \texttt{.fasta} file several times, in that case, occurrences are counted and the count saved. 
+
+Header lines may contain more information - sequence count and labels. In that case, header lines will contain fields separated by \texttt{|} sign. The second field is considered as sequence count and the third field as label, if present. Forth and any following fields are ignored. One fasta header may only contain one label. If more labels for the same sequence are needed, sequence must be repeated several times - once for each label.  \newline 
+
+\textbf{Example of valid .fasta file:} 
+
+\begin{verbatim}
+>
+WVTAPRSLPVLP
+>4863
+GSWVVDISNVED
+>4628|8
+NYSGNRPLPGIW
+>6642|4|label1
+RSPIVRQLPSLP
+>6643|3|label2|something
+RSPIVRQLPSLP
+>664
+RSPIVRQLPSLP
+>4893|1|label2
+AKSRPLPMVGLV
+\end{verbatim}
+
+Table \ref{tab1} shows sequences and their counts in particular labeled groups resulting from such .fasta file: 
+
+\begin{table}[h]
+\begin{tabular}{|l|l|l|l|}
+\hline
+sequence     & label1 & label2 & no\_label \\ \hline
+WVTAPRSLPVLP & 0      & 0      & 1         \\
+GSWVVDISNVED & 0      & 0      & 1         \\
+NYSGNRPLPGIW & 0      & 0      & 8         \\
+RSPIVRQLPSLP & 4      & 3      & 1         \\
+AKSRPLPMVGLV & 0      & 1      & 0         \\ \hline
+\end{tabular}
+\label{tab1}
+\caption{Sequence and label counts resulting from example file parsing}
+\end{table}
+
+
+\paragraph{.tsv (.csv) format}
+The second option of sequence input is a .tsv table with exactly the same structure as table \ref{tab1}.
+
+All fields must be separated by tab characters, the header line must contain all the labels. Sequences must be in the first column, the name of the first column may be arbitrary. Each unique sequence must be present on exactly one line, if a sequence is present in 0 copies in some label group, a cell containing 0 must be present - i.e. all lines must have the same number of tab-separated fields. \newline
+
+Example
+
+\begin{verbatim}
+sequence\tlabel1\tlabel2\tno_label
+WVTAPRSLPVLP\t0\t0\t1
+GSWVVDISNVED\t0\t0\t1
+NYSGNRPLPGIW\t0\t0\t8
+RSPIVRQLPSLP\t4\t3\t1
+AKSRPLPMVGLV\t0\t1\t0
+\end{verbatim}
+
+\texttt{\textbackslash t} stays for tab character.
+This file describes exactly the same dataset as previous table \ref{tab1}.
+
+\subsubsection{Cluster input}
+In \texttt{cluster} mode, Hammock accepts an input file containing clusters previously generated by a Hammock run in \texttt{greedy}, \texttt{clinkage}, \texttt{full} or \texttt{cluster} mode. Such file must be in the .tsv table format identical to output \texttt{\_sequences.tsv} files. See \ref{filesSaved} for details.
+
+
+\subsection{Output files}
+
+Hammock outputs several files into a directory controlled by \texttt{-d, --outputDirectory} parameter (see \ref{parametersCommon}).
+
+\subsubsection{Types of files saved} \label{filesSaved}
+Hammock represents sets of resulting clusters in three differnet ways: by \texttt{\_sequences.tsv} files, \texttt{\_sequences\_original\_order.tsv} and \texttt{\_clusters.tsv} files. In addition, multiple sequence alignments, remaining sequences from the sequence pool, input statistics and run logs are saved.
+
+\begin{description}
+
+\item[files with \_sequences.tsv extension] tsv (tab separated) table files. Such file contains full list of sequences, one line per sequence. For each sequence, cluster membership, alignment (if available) and label counts are listed. Clusters are sorted by size starting from the largest, in every cluster, sequences are sorted by sum of occurrences with all labels, starting from the most frequent. File contains header line.
+
+Example:
+
+\begin{verbatim}
+cluster_id\tsequence\talignment\tsum\tround1\tround2
+2\tEVMSTSDLHRLS\t--EVMSTSDLHRLS-\t51\t11\t40
+2\tETDAYTDLHRLA\t---ETDAYTDLHRLA\t28\t9\t19
+2\tIGSQSDLHKLTI\t---IGSQSDLHKLTI\t5\t4\t1
+2\tEHDMTGYSDLWR\tEHDMTGYSDLWR---\t2\t0\t2
+1\tTTMWPPSLNLPL\t-TTMWPPSLNLPL--\t10\t4\t6
+1\tTTPPGVHSLAPV\t---TTPPGVHSLAPV\t8\t2\t6
+1\tTTSYWWPQNHMD\tTTSYWWPQNHMD---\t3\t3\t0
+1\tTTYTPTLHGIMP\t--TTYTPTLHGIMP-\t3\t1\t2
+1\tTVRPPLMSAWLV\t--TVRPPLMSAWLV-\t1\t1\t0
+\end{verbatim}
+
+\texttt{\textbackslash t} stays for tab character. File contains two clusters, one of size 86 containing 4 unique sequences, the other of size 25, containing 5 unique sequences.
+
+\item[files with \_sequences\_original\_order.tsv extension] tsv (tab separated) table files. Such file contains full list of sequences, one line per sequence. It is very similar to files with \texttt{\_sequences.tsv}, with two differences. First, sequences are not ordered according to resulting clusters, but according to the original order in the input files used. If .fasta file was used with more than one occurrence of a sequence, the first occurrence defines the order. Second, this file also contains sequences not belonging to any cluster (those left in the sequence pool after the clustering process). Such sequences have \texttt{NA} in their corresponding \texttt{cluster\_id} and \texttt{alignment} fields. These files are only saved in \texttt{greedy}, \texttt{clinkage} and \texttt{full} modes (i.e. in modes where single sequences, not clusters were used as input).
+
+Example:
+
+\begin{verbatim}
+cluster_id\tsequence\talignment\tsum\tround1\tround2
+2\tEVMSTSDLHRLS\t--EVMSTSDLHRLS-\t51\t11\t40
+1\tTVRPPLMSAWLV\t--TVRPPLMSAWLV-\t1\t1\t0
+2\tETDAYTDLHRLA\t---ETDAYTDLHRLA\t28\t9\t19
+NA\tETDARRDLHRLA\tNA\t5\t6\t2
+2\tEHDMTGYSDLWR\tEHDMTGYSDLWR---\t2\t0\t2
+1\tTTMWPPSLNLPL\t-TTMWPPSLNLPL--\t10\t4\t6
+1\tTTSYWWPQNHMD\tTTSYWWPQNHMD---\t3\t3\t0
+NA\tRTSYAAPQNAMD\tNA\t9\t0\t11
+2\tIGSQSDLHKLTI\t---IGSQSDLHKLTI\t5\t4\t1
+1\tTTYTPTLHGIMP\t--TTYTPTLHGIMP-\t3\t1\t2
+1\tTTPPGVHSLAPV\t---TTPPGVHSLAPV\t8\t2\t6
+\end{verbatim}
+
+\texttt{\textbackslash t} stays for tab character. File contains two clusters, one of size 86 containing 4 unique sequences, the other of size 25, containing 5 unique sequences and two sequences not belonging to any cluster.
+
+\item[files with \_clusters.tsv extension] tsv (tab separated) table files. Such file contains full list of clusters, one line per cluster. For each cluster, id, the most frequent sequence and sums of sequence occurrences for every label are listed. Lines are sorted by cluster size, starting from the largest cluster. File contains header line. This file may be used in downstream analysis e.g. to generate a heatmap.
+
+Example:
+
+\begin{verbatim}
+cluster_id\tmain_sequence\tsum\tround1\tround2
+2\tEVMSTSDLHRLS\t86\t24\t62
+1\tTTMWPPSLNLPL\t25\t11\t6\t14
+\end{verbatim}
+
+\texttt{\textbackslash t} stays for tab character. File contains information on the same two clusters as in previous example.
+
+\item[File final\_remaining\_sequences.fa] This file contains all the sequences not belonging to any cluster (those left in the sequence pool after the clustering process). It is in the fasta format described in section \ref{fastaFormat}. This file is only saved in \texttt{cluster} and \texttt{full} modes.
+\item[Files with .aln extension] These files contain multiple sequence alignments in aligned fasta format, one file per cluster. 
+\item[input\_statistics.tsv] This file contains information on input dataset label counts. Saved in every run.
+\item[run.log] Contains copy of what's outputted to stderr. Saved in every run.
+
+\end{description}
+
+\subsubsection{Files saved for runs in particular modes}
+\label{filesSavedForRuns}
+\paragraph{results saved in \texttt{greedy} and \texttt{clinkage} modes} In initial clustering modes, resulting clusters are aligned according to greedy clustering or Clustal for \texttt{clinkage}. Three files are saved, all representing the same result in different ways: \texttt{initial\_clusters\_sequences.tsv}, \texttt{initial\_clusters\_sequences\_original\_order.tsv}, \newline\texttt{initial\_clusters\_sequences.csv} \texttt{initial\_clusters.tsv}. See \ref{inputfiles} for details on file formats).  File \texttt{initial\_clusters\_sequences.tsv} may be directly used as input for a run in \texttt{cluster} mode.
+
+\paragraph{results saved in \texttt{cluster} mode} \texttt{cluster} mode gets aligned clusters on input.
+ Resulting final clusters are saved in files \texttt{final\_clusters.tsv}, \texttt{final\_clusters\_sequences.tsv} and \texttt{final\_remaining\_sequences.fa}.
+ 
+\begin{sloppypar}
+ MSAs for initial and final clusters are saved in aligned fasta format in folders \texttt{alignments\_intial} and \texttt{alignments\_final} folders. MSAs generated throughout the process of extending and merging clusters in several rounds (see \ref{howhammockworks} for details) are saved in \texttt{alignments\_other} folder. 
+\end{sloppypar}
+ 
+\paragraph{results saved in \texttt{full} mode} In \texttt{full} mode, all files saved in both \texttt{greedy} or \texttt{clinkage} and \texttt{cluster} modes are saved. In addition, file \texttt{final\_clusters\_sequences\_original\_order.tsv} is saved.
+
+\section{Examples}
+In this section, we will demonstrate the usage of Hammock on sample dataset. Example data and expected results are stored in examples folder.
+
+\subsection{Example 1: MUSI}
+This dataset was originally published with the MUSI tool \cite{Kim2011}. It contains sequences describing transcription factor binding sites. This dataset is suitable for example, because it is very small, consists of short sequences (obtained by Phage display) and contains very clear motifs. 
+
+\subsubsection{Start}
+First, we move to appropriate folder (Suppose \texttt{Hammock} is placed in home folder).\newline
+
+\noindent
+\texttt{\$ cd \textasciitilde/Hammock/examples/MUSI/}\newline
+
+We start by typing in commands from quick start \ref{quickStart}.\newline
+
+\noindent
+\texttt{\$ export HHLIB=\textasciitilde/Hammock/hhsuite-2.0.16/lib/hh/}\newline
+\texttt{\$ java -jar ../../dist/Hammock.jar full -i musi.fa}\newline
+
+The first command sets an environment variable, that is needed for hhsuite to run, the second command runs Hammock in \texttt{full} mode, leaving all parameters set to default values.
+
+When the execution finishes, a folder called \texttt{Hammock\_result\_1} appers in \texttt{dist} folder. Folder contains several files and subfolders. To see brief overview of the results, we can inspect file \texttt{final\_clusters.csv}.\newline
+
+\begin{verbatim}
+$ cd ../../dist/Hammock_result_1
+$ column -s "\t" -t final_clusters.tsv
+cluster_id  main_sequence  sum   no_label
+4330        AAMFLRPLPAVQ   1670  1670
+4334        AALPKLPFRNMT   311   311
+4407        GSWAVDISNVED   12    12
+\end{verbatim}
+
+We can see that Hammock identified 3 clusters. They are too big for manual inspection of their MSAs, but we can still have a look
+
+\begin{verbatim}
+$ column -s "\t" -t final_clusters_sequences.tsv | less
+\end{verbatim}
+
+In the first cluster, central "LP" motif is clearly visible, but we would still like to see some better visualization. In \texttt{alignments\_final} folder, there are cluster MSA's, one file per cluster. We can use them e.g. to generate sequence logos. Suppose we have installed weblogo 3.4 \cite{Crooks2004} before.
+
+\begin{verbatim}
+$ mkdir logos_final
+$ for file in alignments_final/*.aln
+> do
+> echo $file
+> weblogo --format PNG --sequence-type protein --size large --errorbars NO \ 
+> --resolution 299 --composition equiprobable --color-scheme chemistry < $file > \
+>  "logos_final/$(basename "$file" .aln)".png
+> done 
+\end{verbatim}
+
+The three .png files in \texttt{logos\_final} folder show strong motifs conserved in our clusters. The smallest cluster seems like a it gathers just a few versions of the same sequence. We believe these sequences are "parasites", i.e. noise present due to the phenomenon of unbalanced phage amplification. 
+
+In \texttt{alignments\_other} folder, there are alignment files from the entire iterative cluster extension and merging process.
+
+There are 464 sequences in \texttt{final\_remaining\_sequences.fa} that were not assigned to any cluster (The information on this count is also stored in \texttt{run.log}). We'll try to change parameters, so that more sequences are assigned to clusters.
+
+In \texttt{run.log}, we can see that 3 rounds of cluster extension and merging were performed and that assign threshold values were absolute and set to: \texttt{11.4,9.0,6.6}. We'll run Hammock again with lower threshold values of \texttt{11.4, 8.5, 6.0}. As greedy clustering results are ok, we'll re-use them and run Hammock in \texttt{cluster} mode\footnote{In this case, greedy clustering takes so short that it is not actually necessary, but for large datasets and intensive parameter testing, this can save significant amount of time.}. This time, we'll also use 8 computational threads. The resulting command look like this: 
+
+\begin{verbatim}
+cd ~/Hammock/
+java -jar dist/Hammock.jar cluster \ 
+-i dist/Hammock_result_1/initial_clusters_sequences.tsv \ 
+--assign_thresholds 11.4,8.5,6.0 \ 
+-t 8
+\end{verbatim}
+
+We can see that with these parameters, there are only 378 sequences remaining.
+
+
+\section{Galaxy implementation}
+
+\large\textbf{Note: The Galaxy implementation takes a little longer to update, so when a new version of Hammock is published, the Galaxy implementation might be still unsing an older version for a while. The version in use is stated in the Galaxy repository.}
+\newline
+\newline
+
+Hammock is also available as a tool for the Galaxy toolbox \cite{Giardine2005}. The Galaxy version contains slightly less functionality than full standalone version. This section states the differences between these two versions and provides details on the Galaxy version. 
+
+\subsubsection{Download}
+\begin{sloppypar}
+The Galaxy version of Hammock is available for download and installation from the main tool shed at \mbox{\url{https://toolshed.g2.bx.psu.edu/}} in repository called \emph{hammock} in category \emph{Sequence Analysis}.
+
+Direct link: \mbox{\url{https://toolshed.g2.bx.psu.edu/view/hammock/hammock/d90f4809ccc6}}
+
+\end{sloppypar}
+
+\subsubsection{Galaxy version input}
+The Galaxy version only supports fasta input format, see \ref{fastaFormat} for details.
+
+\subsubsection{Galaxy version outputs}
+The Galaxy version only outputs two files, both of them are .tsv tables. The \texttt{sequences.tsv} file contains detailed information on all sequences contained in resulting clusters (see \ref{filesSaved} for details). The \texttt{clusters.tsv} file contains a less detailed summary on resulting clusters (see \ref{filesSaved} for details).
+
+\subsubsection{Galaxy run parameters}
+The Galaxy version only supports runs in \texttt{full} mode. See \ref{parametersCommon} and \ref{parametersFull} for detailed description of parameters. The Galaxy version supports all of the parameters mentioned in these sections, except \texttt{-d, --outputDirectory} (output is handled by Galaxy),  \texttt{-f, --file format} (only .fasta format is supported) and \texttt{-t, --threads} (threads are handled by Galaxy).
+
+
+\newpage
+
+\section{Manual pages}
+\label{manual}
+\subsection{Quick start}
+\label{quickStart}
+\begin{itemize}
+\item[]\verb|export HHLIB=~/Hammock/hhsuite-2.0.16/lib/hh/|\\
+\verb|java -jar ~/Hammock/dist/Hammock.jar full -i ~/Hammock/examples/musi.fa|
+
+\end{itemize}
+
+
+\subsection{Synopsis}
+
+Hammock is packed as an executable java .jar archive. It can be invoked as follows:
+\begin{itemize}
+	\item[]\verb|java -jar| \textit{jvm\_args} \verb|Hammock.jar| \textit{mode param1 param2 param3...}
+\end{itemize}
+where \textit{mode} is one of following: 
+\begin{itemize}
+	\item[] \verb|full|\\
+			 \verb|greedy|\\
+			 \verb|clinkage|\\
+			 \verb|cluster|\\
+\end{itemize}
+
+\subsection{Parameters common for all modes}
+\label{parametersCommon}
+These parameters may be used when any of 4 possible modes is invoked. 
+
+\renewcommand{\ttdefault}{pcr}
+\setlist[description]{font=\normalfont\ttfamily\bfseries\space}
+
+\begin{description}
+	\item[-d, --outputDirectory \rm \textlangle \textit{directory}\textrangle] All output files will be saved into this directory. If the directory does not exist, it will be created. If it does exist, Hammock will stop to prevent overwriting. 
+	 
+	  \textit{Default}: directory \texttt{Hammock\_result\_n} in \texttt{dist} folder will be created. By default, \texttt{n} is 1, if \texttt{Hammock\_result\_1} exists, then \texttt{n} is 2 etc. 
+
+\item[-t, --threads \rm \textlangle \textit{int}\textrangle] Number of threads to be used for computation.
+
+ \textit{Default}: 4. 
+
+\item[-l, --labels \rm \textlangle \textit{str,str,str...}\textrangle] Only sequences carrying these labels will be considered. This parameter also defines the order of labels in all output files. See \ref{labelConcept} for details about labels. 
+
+\textit{Default}: All labels are used. The order in output files is from the most abundant label to the least abundant. 
+
+\item[--temp \rm \textlangle \textit{directory}\textrangle] A directory to store the temporal files in. Note that this option is overridden by the settings.prop file, if corresponding lines are present. The option is useful especially in supercomputing environments when appropriate temporal files storage paths are allocated dynamically. The directory has to be writable and faster file systems are preferred, as Hammock might generate many small temporal files.
+
+\textit{Default}: /tmp
+
+	
+\end{description}
+
+\subsection{Parameters specific for \texttt{full} mode}
+\label{parametersFull}
+In this mode, Hammock \texttt{full} first invokes \textit{initial clustering} procedure, than uses its results as input for \textit{hmm clustering} procedure. See section \ref{howhammockworks} for more details.
+
+All the parameters specific for both \texttt{greedy}/\texttt{clinkage} and \texttt{cluster} modes are allowed with the \texttt{full} mode. Parameter \texttt{-i, --input} behaves the same way as when used with \texttt{greedy}/\texttt{clinkage} mode, i.e. expects a sequence file the type of which can be specified by \texttt{-f, --file\_format} parameter. See \ref{parametersInitial} for details. 
+\begin{description}
+\item[--use\_clinkage] If this switch is present, clinkage clustering will be used as the initial step. 
+	  	  	  	
+	  	  	  	\textit{Default}: By default, clinkage clustering is used when there are up to 10\,000 unique input sequences.
+	  	  	  	
+	  	  	  	\item[--use\_greedy] If this switch is present, greedy clustering will be used as the initial step. 
+	  	  	  	
+	  	  	  	\textit{Default}: By default, greedy clustering is used when there are more than 10\,000 unique input sequences.
+	  	  	  	\end{description}
+
+\subsection{Parameters specific for initial clustering modes (\texttt{greedy} and \texttt{clinkage})}
+\label{parametersInitial}
+\begin{description}
+
+
+	\item[-i, --input \rm \textlangle \textit{file}\textrangle] \textbf{Required.} A path to input file containing input sequences in one of supported formats. Expected file format is controlled by \texttt{-f, --file\_format} parameter. 
+	 
+	  \textit{Default}: No default. This parameter is required.
+
+\item[-f, --file\_format \rm \textlangle \textit{[fasta, tab]}\textrangle] Expected format of file specified by \texttt{-i, --input} parameter. One of two values is expected:
+\setlist[description]{font=\normalfont\ttfamily\space}
+\begin{description}
+	\item[fasta] Sequences in fasta format
+	\item[tab] Sequences in .csv table format
+\end{description}
+See section \ref{filesandformats} for information on file formats. 
+\setlist[description]{font=\normalfont\ttfamily\bfseries\space}
+
+ \textit{Default}: \texttt{fasta}
+
+\item[-m, --matrix \rm \textlangle \textit{file}\textrangle] A path to a file containing amino-acid substitution matrix. A decent selection of matrices is provided in \texttt{Hammock/matrices/} folder. Any other matrix respecting the same file format may be provided 
+
+\textit{Default}: \texttt{Hammock/matrices/blosum62.txt}
+
+\item[-g, --alignment\_threshold \rm \textlangle \textit{int}\textrangle] Minimal score needed for a sequence to join a cluster during initial clustering. For both the clustering routines, each sequence in a cluster must reach at least this score to all the other sequences in the cluster. Only positive integer values are allowed. For compatibility reasons, alias \texttt{--greedy\_threshold} can also be used for this parameter.
+
+\textit{Default}: If not set, threshold value is determined based on average sequence length. The value is $1.7 \times average\_seq\_legth$ rounded to integer.
+
+\item[-x, --max\_shift \rm \textlangle \textit{int}\textrangle] The size of maximal sequence-sequence shift. During initial clustering, Hammock searches for best sequence-sequence alignment without inner gaps. This parameter specifies the maximal number of positions by which sequences are allowed to be shifted during alignment. Higher values may mean a bit more sensitivity for the price of slower computation. Non-negative integer values only. The maximal value allowed is the length of the shorted sequence -1. If a higher value is set, Hammock will adjust it to the maximal.
+
+\textit{Default}: If not set, the value is determined on the basis of average sequence length. The value is $0.25 \times average\_seq\_legth$ rounded to integer.
+
+\item[-p, --gap\_penalty \rm \textlangle \textit{-int}\textrangle] During greedy clustering, Hammock searches for best sequence-sequence alignment without inner gaps. This parameter specifies the negative penalty given to score of an alignment for each amino acid aligned towards a (trailing) gap. Non-positive integer values only.
+
+\textit{Default}: 0
+
+\end{description}
+
+\subsection{Parameters specific for \texttt{greedy} mode}
+\label{parametersGreedy}
+\begin{description}
+
+\item[-R, --order \rm \textlangle \textit{[size, alphabetic, random, input]}\textrangle] This parameter specifies the order of sequences during greedy clustering. One of three values is expected: 
+\setlist[description]{font=\normalfont\ttfamily\space}
+\begin{description}
+	\item[size] Sequences are sorted from the one with the most copies to the one with the least. Sequences with equal numbers of copies are sorted alphabetically. 
+	\item[alphabetic] Sequences are sorted alphabetically.
+	\item[random] Random order of sequences is used. In order to achieve determinism and reproducibility, the random order depends on the \texttt{-S, --seed} parameter
+	\item[input] Order from the input file is preserved.
+\end{description}
+\setlist[description]{font=\normalfont\ttfamily\bfseries\space}
+\textit{Default}: \texttt{size}
+
+\item[-S, --seed \rm \textlangle \textit{int}\textrangle] The seed to be used as the base for pseudorandom sequence order. Only applicable when \texttt{-R random} is in use. For a defined seed, the order (and so the result of greedy clustering) is deterministic.
+
+\textit{Default}: 42
+
+\item[--initial\_clusters\_limit \rm \textlangle \textit{int}\textrangle] Simplifying a bit, we can say that the greedy clustering algorithm takes sequences one-by-one, starting from the beginning of the list (defined by \texttt{-R, --order} parameter) and builds a cluster around each of them. This number specifies how many sequences will get the chance to have a cluster built around. It is the maximal number of clusters of size more than 1 that will result from greedy clustering.
+
+\textit{Default}: 2.5 \% of the number of unique sequences in the dataset.
+
+\end{description}
+
+
+\subsection{Parameters specific for \texttt{clinkage} mode}
+\label{parametersClinkage}
+\begin{description}
+
+
+\item[-L, --cache\_size\_limit \rm \textlangle \textit{int}\textrangle] Size threshold for a cluster have the scores to other clusters cached. Normally, there should be no need to change this parameter. In case \texttt{clinkage} mode is used with large datasets, Hammock may require unacceptable amounts of memory. Increasing this parameter lowers the demand for memory, but also increases the execution time. Reasonable values should be approximately from 1 to 10, the use of higher values practically turns off any caching. 
+
+\textit{Default}: 1
+
+\end{description}
+
+
+\subsection{Parameters specific for \texttt{cluster} mode}
+\label{parametersCluster}
+
+\begin{description}
+
+
+	\item[-i, --input \rm \textlangle \textit{file}\textrangle] \textbf{Required.} A path to an input file containing clusters in .tsv table format (if produced by Hammock, the files with \_sequences.tsv extension).
+	 
+	  \textit{Default}: No default. This parameter is required.
+	  
+%	  	\item[-a, --part\_threshold \rm \textlangle \textit{float [0, 1]}\textrangle] The proportion of initial clusters to be used as cores for hmm-based clustering. The result will never contain more clusters than the number of initial cores. This parameter overrides any value of \texttt{-s, --size\_threshold} parameter.
+	 
+%	  \textit{Default}: 0.025, meaning that 2.5 \% of largest initial clusters will be used as cores, with the maximum of 250 and minimum of 25 cores (manual setting overrides maximum and minimum limits).
+	  
+%	  \item[-s, --size\_threshold \rm \textlangle \textit{int}\textrangle] All clusters containing at least this number of sequences will be used as cores for hmm-based clustering. The result will never contain more clusters than the number of initial cores. 
+	 
+%	  \textit{Default}: No default. Parameter \texttt{-a, --part\_threshold} is the default choice for specification of the number of cluster cores.
+
+	\item[-as, --additional\_sequences \rm \textlangle \textit{file}\textrangle]A path to an input file containing sequences in fasta format. These sequences will be added to the sequence pool. Especially useful when additional extension (and merging) rounds are needed. If this is the case, use this parameter to include the \texttt{final\_remaining\_sequences.fa} file from a finished run to continue exactly as if the run was specified to perform more extension/merging rounds. 
+	 
+	  \textit{Default}: No default.
+
+
+ \item[-U, --unique] If this switch is present, initial clusters will be ordered by their unique size, i.e. the number of unique sequences they contain, rather than by their total size, i.e. the sum of all sequence counts across all labels. The order defines which clusters will be selected as cluster cores for HMM-based clustering (also influenced by \texttt{-c, --count}. 
+	  
+	  	  \textit{Default}: By default, this switch is OFF.
+	  
+	  \item[-c, --count\_threshold \rm \textlangle \textit{int}\textrangle] This many largest initial clusters will be used as cluster cores for HMM-based clustering. Clusters are ordered by total size or unique size, depending on \texttt{-U, --unique} parameter. The result will never contain more than this number of clusters.
+	 
+	  \textit{Default}: 2.5 \% of the total number of initial clusters, with the maximum of 250 and minimum of 25 cores (manual setting overrides maximum and minimum limits).
+	  
+	  	  \item[-n, --assign\_thresholds \rm \textlangle \textit{float,float,float...}\textrangle] Length of this sequence of thresholds defines the number of clustering rounds. Each threshold value is used as the minimal score (inclusive) returned by \texttt{hmmsearch} needed for a sequence to be added into a cluster in the respective extension step. If a negative value is found, the corresponding extension step is skipped (and the following merging step is run immediately).
+	 
+\begin{sloppypar}
+	 
+	  \textit{Default}: By default, 3 rounds of clustering will be performed. Threshold values are determined based on average input peptide sequence length. If scores are absolute (switch \texttt{-b, --absolute\_thresholds} is ON (default)) thresholds are definded as: $(0.95, 0.75, 0.55)\times average\_seq\_legth$. If scores are relative, (switch \texttt{-e, --relative\_thresholds} is ON),  thresholds are defined as: $(0.13, 0.113, 0.108)\times average\_seq\_legth$.
+
+\end{sloppypar}	  
+	    
+	\item[-v, --overlap\_thresholds \rm \textlangle \textit{float,float,float...}\textrangle] For each round of clustering, specifies minimal score reported by \texttt{hmmsearch} needed for a sequence to be assigned into overlapping sets of sequences. Clusters having overlapping sets of found sequences will be compared using hmm-hmm alignment and may possibly be merged. Setting lower values may result in increase in sensitivity (more cluster merging) for the price of greater resource consumption. On the other hand, large values will prevent clusters from being merged. When the threshold is 0, all clusters will be compared and possibly merged if similar enough. 
+	
+	The length of this threshold sequence must be the same as the length of sequence specified by \texttt{-n, --assign\_thresholds} parameter.
+
+\begin{sloppypar}	 
+	 
+	  \textit{Default}: By default, 3 rounds of clustering will be performed. Threshold values are determined based on average input peptide sequence length. If scores are absolute (switch \texttt{-b, --absolute\_thresholds} is ON (default)) thresholds are definded as: $(0.7, 0.4, 0.0)\times average\_seq\_legth$. If scores are relative, (switch \texttt{-e, --relative\_thresholds} is ON),  thresholds are defined as: $(0.09, 0.075, 0.0)\times average\_seq\_legth$.
+	   If  \texttt{-n, --assign\_thresholds} parameter is set, so that the number of clustering rounds is not equal 3, whole sequence of thresholds is determined based on \texttt{-n, --assign\_thresholds} parameter as: $(assign\_thresholds)\times 0.75$ with the last score set to 0.
+	  
+	  It is generally recommended to set at least the last score to 0 and at least the first score to some reasonable positive value.
+	  
+\end{sloppypar}
+	
+	  \item[-r, --merge\_thresholds \rm \textlangle \textit{float,float,float...}\textrangle] For each cluster merging step, specifies the minimal score reported by \texttt{hhalign} needed for two clusters to be merged. Only clusters having overlapping sets of found sequences are tested and possibly merged. The length of this score sequence must be the same as the length of sequence specified by \texttt{-n, --assign\_thresholds} parameter. If a negative value is found, the corresponding cluster merging step is skipped and the following extension step is run immediately.
+	  
+\begin{sloppypar}	
+	 
+	  \textit{Default}: By default, 3 rounds of clustering will be performed. Threshold values are determined based on average input peptide sequence length. If scores are absolute (switch \texttt{-b, --absolute\_thresholds} is ON (default)) thresholds are definded as: $(0.95, 0.75, 0.55)\times average\_seq\_legth$. If scores are relative, (switch \texttt{-e, --relative\_thresholds} is ON), thresholds are defined as: $(0.125, 0.115, 0.110)\times average\_seq\_legth$. If  \texttt{-n, --assign\_thresholds} parameter is set, so that the number of clustering rounds is not equal 3, whole sequence of thresholds is determined based on \texttt{-n, --assign\_thresholds} parameter. Thresholds are defined as: $(assign\_thresholds)\times 1.0$.
+	  
+\end{sloppypar}	
+
+\begin{sloppypar}	
+	  
+	  \item[-e, --relative\_thresholds] If this switch is present, all scores defined by \texttt{-n, --assign\_thresholds}, \texttt{-v, --overlap\_thresholds} and \texttt{-r, --merge\_thresholds} are interpreted as per hmm match state scores. It means that absolute threshold value is computed as $(value\times length$ where $value$ is the value set by parameters and $length$ is the number of match states of shorter hmm (when hmm vs. hmm are compared) or the length of sequence (when hmm vs. sequence are compared and sequence is shorter than the number of hmm match states). This is the opposite from \texttt{-b, --absolute\_thresholds} switch.
+	  
+\end{sloppypar}	
+	  
+	    \textit{Default}: By default, this switch is OFF.
+	
+\begin{sloppypar}	
+	  \item[-b, --absolute\_thresholds] If this switch is present, all scores defined by \texttt{-n, --assign\_thresholds}, \texttt{-v, --overlap\_thresholds} and \texttt{-r, --merge\_thresholds} are interpreted as absolute threshold values. It means that these numbers are directly used in computation and no length correction is made. This is the opposite from \texttt{-e, --relative\_thresholds} switch.
+	
+\end{sloppypar}	
+	  
+	    \textit{Default}: By default, this switch is ON. 
+	    
+	  
+	  	  \item[-h, --min\_conserved\_positions \rm \textlangle \textit{int}\textrangle] At any stage of the algorithm, clusters are not allowed to have less than this number of conserved positions (i.e. conserved multiple alignment columns without too many gaps). If this option is set to 0, no conserved positions control is performed. 
+	  	  
+	  	  \textit{Default}: If not set, the value is determined on the basis of average sequence length. The value is $0.33 \times average\_seq\_legth$ rounded to integer.
+	  	  
+	  	  	  	  \item[-y, --max\_gap\_proportion \rm \textlangle \textit{float}\textrangle] 
+	  	  	  	  Defines maximal proportion of gaps in conserved positions. Any multiple sequence alignment column containing more gaps will not be considered a conserved position.
+	  	  
+	  	  \textit{Default}: 0.05
+	  	  
+\begin{sloppypar}	
+	  	  
+	  	  	  	  	  	  \item[-k, --min\_ic \rm \textlangle \textit{float}\textrangle] Defines minimal information content a conserved position (in terms of the Shannon entropy). Note that maximal information content (meaning mulitple alignment column containing the same amino acid in all rows) is 4.3219. 
+	  	  	  	  	  	  
+\end{sloppypar}	
+	  	  
+	  	  \textit{Default}: 1.2
+	  	  	  	  
+	  	  
+	  	  	  	\item[-j, --max\_aln\_length \rm \textlangle \textit{int}\textrangle] Defines maximal alignment length. If a sequence insertion or cluster merging event would result in a cluster having multiple sequence alignment with more positions than this value, the insertion/merging is not performed.
+	  	  	  	
+	  	  	  	\textit{Default}: If not set, threshold value is determined based on average sequence length. The value is $2.0 \times average\_seq\_legth$ rounded to integer.
+	  	  	  	
+	  	  	  		  	  	  	\item[-u, --max\_inner\_gaps \rm \textlangle \textit{int}\textrangle]  Defines maximal number of inner (non-trailing) gaps for each line of each multiple sequence alignment. If this parameter is more than 0, it might cause a non-match state to exist between 2 match states, representing insertion/deletion in a part of the cluster sequences.
+	  	  	  	
+	  	  	  	\textit{Default}: 0
+	  	  	  	
+	  	  	  	\item[-q, --extension\_increase\_length] If this switch is present, sequence insertion routine is allowed to insert sequences in a cluster, even if such insertion increases the number of positions in cluster's multiple sequence alignment. 
+	  	  	  	
+	  	  	  	\textit{Default}: By default, this switch is OFF. 
+
+	  	  
+	  	  	  	  	  	  \item[-C, --min\_correlation \rm \textlangle \textit{float[-1.0, 1.0]}\textrangle] This parameter only makes sense when multiple sequence labels are in use. Defines the minimal value of Pearson correlation coefficient between the vectors of sequence-label abundances of two clusters to be merged or a sequence and a cluster when the sequence is about to join the cluster. If the threshold is not reached, the merging/joining is not performed. The value of -1.0 implies no such constraint is applied.
+	  	  	  	  	  	  	
+	  	  
+	  	  \textit{Default}: -1.0
+	  	  	  	  
+
+
+\end{description}
+
+
+\section{Other settings}
+\label{othersettings}
+\subsection{The \texttt{settings.prop} file}
+\label{settings.propfile}
+This file contains options less often needed to be changed. It defines commands for calling external tools, paths to folders containing temporal files and parameters for external tools. 
+
+\subsubsection{File format}
+Lines starting with hash (\#) character ale ignored.\newline
+Each option is defined as a line containing pair \textit{key}=\textit{value} where \textit{key} is option name. 
+
+\subsubsection{Commands for external tools}
+By default, commands (paths to) external tools need not to be specified. If a command is not specified, Hammock expects to find appropriate file in appropriate folder according to original folder structure Hammock comes with. Paths are internally defined relative to \texttt{Hammock.jar} file in \texttt{dist} folder. Namely: \newline\newline
+Clustal Omega file as: \texttt{Hammock/clustal-omega-1.2.0/clustalO-64bit}\newline
+Hmmer's hmmbuild file as: \texttt{Hammock/hmmer-3.1b1/src/hmmbuild}\newline
+Hmmer's hmmsearch file as: \texttt{Hammock/hmmer-3.1b1/src/hmmsearch}\newline
+HHSuite's hhmake file as: \texttt{Hammock/hhsuite-2.0.16/bin/hhmake}\newline
+HHSuite's hhsearch file as: \texttt{Hammock/hhsuite-2.0.16/bin/hhsearch}\newline
+
+\subsubsection{Paths to temporal files}
+During each run, Hammock generates and deletes several types of temporal files. By default, all temporal files are placed in subfolders of \texttt{/tmp/Hammock\_temp\_[time]} folder. The location of the master temporal files directory can be changed using the \texttt{--temp} switch. Also, in \texttt{settings.prop} file, it is possible to change the master temporal directory, as well as to specify locations of particular temporal subdirectories separately (e.g. the directory where MSAs are stored). Any settings present (uncommented) in the settings.prop file overrides the \texttt{--temp} switch. Note that if temporal subdirectories already exist at the beginning of a Hammock run, their contents are deleted. Be sure to set the temp directory path so that the directory is writable.
+
+ Hammock may generate up to thousands of (generally very small) temporal files in each run, depending on input size and complexity.
+
+\subsubsection{Parameters for external tools}
+It is generally not recommended to change anything in this section. Some changes may result in Hammock not working at all, others may have strong impact on results. See manuals of external tools for definitions of parameters used.
+
+\subsection{jvm parameters}
+For big datasets, it may be necessary to allow jvm to allocate more memory. This can be done using \texttt{-Xmx} parameter, e.g. \texttt{-Xmx4g} to allocate up to 4 gigabytes. 
+
+
+
+
+
+\bibliography{biblio}{}
+
+
+\end{document}

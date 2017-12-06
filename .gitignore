@@ -1,0 +1,12 @@
+build/
+dist/
+*.jar
+nbproject/private/
+nbbuild/
+dist/
+test/
+nbdist/
+.nb-gradle/
+/manual/*
+!manual/manual.tex
+!manual/biblio.bib
