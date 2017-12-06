@@ -1,4 +1,8 @@
 # Hammock changelog
+## Version 1.1.3
+### date
+- There is no longer need to set the `HHLIB` environmental variable manually.
+
 ## Version 1.1.2
 ### 2017-11-29
 - multi-line fasta files are now accepted as input
