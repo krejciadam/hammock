@@ -10,6 +10,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -28,10 +29,11 @@ public class ExternalProcessRunner {
      * @param out a PrintStream object to print stdout to
      * @param errOut a PrintStream object to print stderr to
      * @param errMessage Error message to be added to error output (e.g. which cluster caused the error)
+     * @param env A map of environmental variables to introduce. If null, no additional environmental variables will be introduced.
      * @throws IOException
      * @throws InterruptedException 
      */
-    public static void runProcess(String programCommand, List<String> arguments, PrintStream out, PrintStream errOut, String errMessage) throws IOException, InterruptedException{
+    public static void runProcess(String programCommand, List<String> arguments, PrintStream out, PrintStream errOut, String errMessage, Map<String, String> env) throws IOException, InterruptedException{
         List<String> command = new ArrayList<>();
         command.add(programCommand);
         if (arguments != null){
@@ -39,7 +41,13 @@ public class ExternalProcessRunner {
         }
         try{
             String line;
-            final Process process = new ProcessBuilder(command).start();
+            ProcessBuilder builder = new ProcessBuilder(command);
+            if (env != null){
+                for (Map.Entry<String, String> entry : env.entrySet()){
+                    builder.environment().put(entry.getKey(), entry.getValue());
+                }
+            }
+            final Process process = builder.start();
             BufferedReader brCleanUp = new BufferedReader(new InputStreamReader(process.getInputStream()));
             while ((line = brCleanUp.readLine()) != null) {
                 if (out != null) {

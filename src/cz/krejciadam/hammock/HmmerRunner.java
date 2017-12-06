@@ -173,7 +173,7 @@ class SingleThreadHmmbuildRunner implements Callable<Void> {
         }
         parameters.add(Settings.getInstance().getHmmDirectory() + cluster.getId() + ".hmm");
         parameters.add(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m");
-        ExternalProcessRunner.runProcess(Settings.getInstance().getHmmbuildCommand(), parameters, null, System.err, "While building Hmmer hmm for cluster " + cluster.getId() + " ");
+        ExternalProcessRunner.runProcess(Settings.getInstance().getHmmbuildCommand(), parameters, null, System.err, "While building Hmmer hmm for cluster " + cluster.getId() + " ", null);
         cluster.setAsHasHMM();
         return null;
     }
@@ -227,7 +227,7 @@ class SingleThreadHmmsearchRunner implements Callable<List<HmmsearchResult>> {
         parameters.add(Settings.getInstance().getHmmsearchOutDirectory() + cluster.getId() + ".out");
         parameters.add(Settings.getInstance().getHmmDirectory() + cluster.getId() + ".hmm");
         parameters.add(Settings.getInstance().getFastaDatabaseFile());
-        ExternalProcessRunner.runProcess(Settings.getInstance().getHmmsearchCommand(), parameters, null, System.err, "While searching sequence database with hmm " + cluster.getId() + " ");
+        ExternalProcessRunner.runProcess(Settings.getInstance().getHmmsearchCommand(), parameters, null, System.err, "While searching sequence database with hmm " + cluster.getId() + " ", null);
     }
 
     /**

@@ -111,6 +111,7 @@ public class Hammock {
     public static int maxInnerGaps = 0;
     public static Boolean innerGapsAllowed = null;
     public static boolean extensionIncreaseLength = false;
+    public static Map<String, String> hhSuiteEnv = null;
     //hmm - filtering
     public static boolean filterBeforeAssignment = false;
     public static int sequenceAddThreshold = 12;
@@ -1292,15 +1293,18 @@ public class Hammock {
      *
      */
     private static boolean checkClusteringArgs() throws IOException, InterruptedException, CLIException {
-        if (!checkEnvVariable("HHLIB")) {
-            throw new CLIException("Error. Environmental variable \"HHLIB\" not set. Set it so that it contains path to: hhsuite_folder/lib/hh ");
+        Map<String, String> env = System.getenv();
+        if (!env.containsKey("HHLIB")){
+            hhSuiteEnv = new HashMap<>();
+            hhSuiteEnv.put("HHLIB", PARENT_DIR + SEPARATOR_CHAR + "hhsuite-2.0.16" + SEPARATOR_CHAR + "lib" + SEPARATOR_CHAR + "hh" + SEPARATOR_CHAR);
+            logger.logAndStderr("HHLIB env. variable not set. Setting to: " + hhSuiteEnv.get("HHLIB"));
         }
         if (!inGalaxy) {
-            checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega");
-            checkExternalProgram(Settings.getInstance().getHmmbuildCommand(), Arrays.asList("-h"), "hmmbuild");
-            checkExternalProgram(Settings.getInstance().getHmmsearchCommand(), Arrays.asList("-h"), "hmmsearch");
-            checkExternalProgram(Settings.getInstance().getHhmakeCommand(), Arrays.asList("-h"), "hhmake");
-            checkExternalProgram(Settings.getInstance().getHhsearchCommand(), Arrays.asList("-h"), "hhsearch");
+            checkExternalProgram(Settings.getInstance().getClustalCommand(), Arrays.asList("-h"), "Clustal Omega", null);
+            checkExternalProgram(Settings.getInstance().getHmmbuildCommand(), Arrays.asList("-h"), "hmmbuild", null);
+            checkExternalProgram(Settings.getInstance().getHmmsearchCommand(), Arrays.asList("-h"), "hmmsearch", null);
+            checkExternalProgram(Settings.getInstance().getHhmakeCommand(), Arrays.asList("-h"), "hhmake", hhSuiteEnv);
+            checkExternalProgram(Settings.getInstance().getHhsearchCommand(), Arrays.asList("-h"), "hhsearch", hhSuiteEnv);
         }
         if ((partThreshold != null) && ((partThreshold > 1.0) || (partThreshold < 0.0))) {
             System.err.println("Error. Parameter -a (--part_threshold) must be within interval (0.0, 1.0)).");
@@ -1372,11 +1376,6 @@ public class Hammock {
     }
     
 
-    private static boolean checkEnvVariable(String variable) {
-        Map<String, String> env = System.getenv();
-        return env.containsKey(variable);
-    }
-
     /**
      * Check if external program returns no errors. Returns true if the length
      * of stderr is zero, throws an exception otherwise.
@@ -1389,14 +1388,14 @@ public class Hammock {
      * @throws IOException if length of stderr is not 0.
      * @throws InterruptedException
      */
-    private static boolean checkExternalProgram(String command, List<String> args, String programName) throws IOException, InterruptedException {
+    private static boolean checkExternalProgram(String command, List<String> args, String programName,  Map<String, String> env) throws IOException, InterruptedException {
         ByteArrayOutputStream errorBaos = new ByteArrayOutputStream();
         PrintStream errorStream = new PrintStream(errorBaos);
         ByteArrayOutputStream outputBaos = new ByteArrayOutputStream();
         PrintStream outputStream = new PrintStream(outputBaos);
 
         try {
-            ExternalProcessRunner.runProcess(command, args, outputStream, errorStream, "");
+            ExternalProcessRunner.runProcess(command, args, outputStream, errorStream, "", env);
         } catch (IOException e) {
             throw new IOException("Error, can't run " + programName + ". Check, if the program is installed properly and and runnable.\n"
                     + "Current path to " + programName + ": " + Settings.getInstance().getClustalCommand() + "\n"
