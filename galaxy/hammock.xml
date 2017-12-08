@@ -1,4 +1,4 @@
-<tool id="hammock_1.0" name="Hammock - cluster peptides" version="1.1.1" hidden="false">
+<tool id="hammock_1.0" name="Hammock - cluster peptides" version="1.1.2" hidden="false">
 
     <description>Clusters short peptide sequences</description>
 
@@ -307,11 +307,11 @@ wrapper.sh \$HAMMOCK_JAR full --galaxy -t \${GALAXY_SLOTS:-4} -i $input --goc $o
 <help>
 
 
-**HAMMOCK version 1.1.1**
+**HAMMOCK version 1.1.2**
 
 **Hammock overview**
 
-Hammock performs peptide sequence clustering. It is able to identify clusters of sequences sharing a sequence motif within big datasets. For news, documentation and other available versions, see http://www.recamo.cz/en/software/hammock-cluster-peptides/
+Hammock performs peptide sequence clustering. It is able to identify clusters of sequences sharing a sequence motif within big datasets. For news, documentation, and standalone version, see https://github.com/krejciadam/hammock/
 
 ------
 
@@ -375,7 +375,7 @@ The third file is the same as the second file, with two differences: it also con
 **Parameters**
 Default and auto-detected parameters have been carefully tuned and tested to work well with several datasets, they are especially suited for short peptides from phage display experiments. Neverheless, there is no such thing as universal rules suitable for every dataset - parameter understanding and tuning may be needed. For more detailed description of parameters, see the documentation_.
 
-.. _documentation: http://www.recamo.cz/userfiles/file/Software/Hammock/Hammock-manual.pdf
+.. _documentation: https://github.com/krejciadam/hammock/blob/develop/manual.pdf
 
 
 </help>
