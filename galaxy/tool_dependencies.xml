@@ -70,7 +70,6 @@
                 		</action>
 						<action type="shell_command">sed -i "s%hhmakeCommand=hhmake%hhmakeCommand=$INSTALL_DIR/hhmake%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
 						<action type="shell_command">sed -i "s%hhsearchCommand=hhsearch%hhsearchCommand=$INSTALL_DIR/hhsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
-						<action type="shell_command">sed -i "s%reformatCommand=reformat.pl%reformatCommand=$INSTALL_DIR/lib/hh/scripts/reformat.pl%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
 						<action type="set_environment">
 							<environment_variable name="HHLIB" action="set_to">$INSTALL_DIR/lib/hh</environment_variable>   
 						</action>
@@ -90,7 +89,6 @@
                 		</action>
 						<action type="shell_command">sed -i '' -e "s%hhmakeCommand=hhmake%hhmakeCommand=$INSTALL_DIR/hhmake%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
 						<action type="shell_command">sed -i '' -e "s%hhsearchCommand=hhsearch%hhsearchCommand=$INSTALL_DIR/hhsearch%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
-						<action type="shell_command">sed -i '' -e "s%reformatCommand=reformat.pl%reformatCommand=$INSTALL_DIR/lib/hh/scripts/reformat.pl%g" $REPOSITORY_INSTALL_DIR/Hammock/settings/settings.prop</action>
 						<action type="set_environment">
 							<environment_variable name="HHLIB" action="set_to">$INSTALL_DIR/lib/hh</environment_variable>   
 						</action>
