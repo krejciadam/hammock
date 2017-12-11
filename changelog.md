@@ -1,4 +1,8 @@
 # Hammock changelog
+## Version 1.1.3
+### 2017-12-11
+- Corrected a bug in fasta loading
+
 ## Version 1.1.2
 ### 2017-11-29
 - multi-line fasta files are now accepted as input
