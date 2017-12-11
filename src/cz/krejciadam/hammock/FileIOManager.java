@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -156,8 +157,7 @@ public class FileIOManager {
      * @throws FileFormatException
      */
     public static List<UniqueSequence> loadUniqueSequencesFromFasta(String fileName) throws IOException, FileNotFoundException, FileFormatException {
-        Map<String, Map<String, Integer>> sequenceMap = new HashMap<>();
-        List<String> sequenceOrder = new ArrayList<>();
+        Map<String, Map<String, Integer>> sequenceMap = new LinkedHashMap<>();
         String line;
         String sequence = "";
         String label = null;
@@ -166,7 +166,6 @@ public class FileIOManager {
             while ((line = reader.readLine()) != null) {
                 if (line.startsWith(">")) {
                     if (sequence.length() > 0) { //add the previous sequence
-                        sequenceOrder.add(sequence);
                         Map<String, Integer> labelsMap = updateLabelsMap(sequenceMap.get(sequence), label, count);
                         sequenceMap.put(sequence, labelsMap);
                         sequence = "";
@@ -192,13 +191,12 @@ public class FileIOManager {
                     sequence = sequence.concat(line.trim());
                 }
             }//Add the last sequence:
-            sequenceOrder.add(sequence);
             Map<String, Integer> labelsMap = updateLabelsMap(sequenceMap.get(sequence), label, count);
             sequenceMap.put(sequence, labelsMap);
         }
         List<UniqueSequence> result = new ArrayList<>();
-        for (String seq : sequenceOrder) {
-            result.add(new UniqueSequence(seq, sequenceMap.get(seq)));
+        for(Map.Entry<String, Map<String, Integer>> entry : sequenceMap.entrySet()){
+            result.add(new UniqueSequence(entry.getKey(), entry.getValue()));
         }
         return (result);
     }
