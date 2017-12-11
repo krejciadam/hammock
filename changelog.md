@@ -1,7 +1,11 @@
 # Hammock changelog
-## Version 1.1.3
+## Version 1.1.4
 ### date
 - There is no longer need to set the `HHLIB` environmental variable manually.
+
+## Version 1.1.3
+### 2017-12-11
+- Corrected a bug in fasta loading
 
 ## Version 1.1.2
 ### 2017-11-29
