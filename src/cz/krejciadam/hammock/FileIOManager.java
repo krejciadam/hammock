@@ -314,50 +314,49 @@ public class FileIOManager {
                 header.remove(sumIndex);
             }
             List<String> labels = header.subList(2, header.size()); //0: cluster_id, 1: sequence
+            Map<Integer, List<List<String>>> splitLineMap = new HashMap<>();
+
             String line;
-            List<UniqueSequence> sequences = null;
-            StringBuilder alignments = new StringBuilder();
-            int clusterId = -1;
-            int seqIndex = 0;
             while ((line = reader.readLine()) != null) {
                 List<String> splitLine = new ArrayList<>(Arrays.asList(line.split(Hammock.CSV_SEPARATOR)));
                 int id = Integer.decode(splitLine.get(0));
-                if (id != clusterId) {
-                    if (clusterId != -1) {  //it is not the first cluster => add the cluster
-                        Cluster cl = new Cluster(sequences, clusterId);
-                        if ((alignments.length() >= 1) && ((loadAllAlignments) || ((alignmentsToGet != null) && (alignmentsToGet.contains(clusterId))))) {
-                            int alignmentLinesCount = (StringUtils.countMatches(alignments, "\n") / 2);
-                            if (alignmentLinesCount == cl.getUniqueSize()) { //alignments with some aligned sequences 'NA' will not be used
-                                FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
-                                cl.setAsHasMSA();
-                            }
+                List<List<String>> lineList = splitLineMap.get(id);
+                if (lineList == null) {
+                    lineList = new ArrayList<>();
+                }
+                lineList.add(splitLine);
+                splitLineMap.put(id, lineList);
+            }
+
+            for (Map.Entry<Integer, List<List<String>>> entry : splitLineMap.entrySet()) {
+                int clusterId = entry.getKey();
+                List<UniqueSequence> sequences = new ArrayList<>();
+                StringBuilder alignments = new StringBuilder();
+                int seqIndex = 0;
+                for (List<String> splitLine : entry.getValue()) {
+                    if (alignmentIndex != -1) {
+                        String alignedSeq = splitLine.get(alignmentIndex);
+                        if (!alignedSeq.equals("NA")) {
+                            alignments.append(">").append(clusterId).append("_").append(seqIndex).append("\n").append(alignedSeq).append("\n");
                         }
-                        result.add(cl);
+                        splitLine.remove(alignmentIndex);
+                        seqIndex++;
                     }
-                    clusterId = id;
-                    sequences = new ArrayList<>();
-                    alignments = new StringBuilder();
-                    seqIndex = 0;
-                }
-                if (alignmentIndex != -1) {
-                    String alignedSeq = splitLine.get(alignmentIndex);
-                    if (!alignedSeq.equals("NA")) {
-                        alignments.append(">").append(clusterId).append("_").append(seqIndex).append("\n").append(alignedSeq).append("\n");
+                    if (sumIndex != -1) {
+                        splitLine.remove(sumIndex);
                     }
-                    splitLine.remove(alignmentIndex);
-                    seqIndex++;
+                    sequences.add(lineToUniqueSequence(splitLine.get(1), splitLine.subList(2, splitLine.size()), labels));
                 }
-                if (sumIndex != -1) {
-                    splitLine.remove(sumIndex);
+                Cluster cl = new Cluster(sequences, clusterId);
+                if ((alignments.length() >= 1) && ((loadAllAlignments) || ((alignmentsToGet != null) && (alignmentsToGet.contains(clusterId))))) {
+                    int alignmentLinesCount = (StringUtils.countMatches(alignments, "\n") / 2);
+                    if (alignmentLinesCount == cl.getUniqueSize()) { //alignments with some aligned sequences 'NA' will not be used
+                        FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
+                        cl.setAsHasMSA();
+                    }
                 }
-                sequences.add(lineToUniqueSequence(splitLine.get(1), splitLine.subList(2, splitLine.size()), labels));
+                result.add(cl);
             }
-            Cluster cl = new Cluster(sequences, clusterId);
-            if (alignments.length() >= 1) {
-                FileIOManager.saveStringToFile(alignments.toString(), Settings.getInstance().getMsaDirectory() + clusterId + ".aln");
-                cl.setAsHasMSA();
-            }
-            result.add(cl);
         } catch (NumberFormatException | NullPointerException e) {
             throw new FileFormatException("Error in cluster file: "
                     + fileName + " - wrong format. Original message: ", e);
