@@ -139,6 +139,40 @@ public class Hammock {
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
+            List<Cluster> clusters = FileIOManager.loadClustersFromCsv("/home/akrejci/NetBeansProjects/Hammock/dist/Hammock_result_4/initial_clusters_sequences.tsv", true);
+            List<Cluster> coreClusters = new ArrayList<>();
+            List<Cluster> databaseClusters = new ArrayList<>();
+            Collections.sort(clusters, Collections.reverseOrder());
+            List<UniqueSequence> seqs = new ArrayList<>();
+            for (int i = 0; i < clusters.size(); i++){
+                if (i < 250){
+                    coreClusters.add(clusters.get(i));
+                } else{
+                    if (clusters.get(i).size() >= 3 && i < 750){
+                        databaseClusters.add(clusters.get(i));
+                    }
+                    else{
+                        seqs.addAll(clusters.get(i).getSequences());
+                    }
+                }
+            }
+            int size = 0;
+            for (Cluster cl : coreClusters){
+                size += cl.getUniqueSize();
+            }
+            System.out.println(coreClusters.size());
+            threadPool = Executors.newFixedThreadPool(nThreads);
+            hhSuiteEnv = new HashMap<>();
+            innerGapsAllowed = false;
+            labels = getSortedLabels(coreClusters.get(0).getSequences());
+            hhSuiteEnv.put("HHLIB", "/home/akrejci/NetBeansProjects/Hammock" + SEPARATOR_CHAR + "hhsuite-2.0.16" + SEPARATOR_CHAR + "lib" + SEPARATOR_CHAR + "hh" + SEPARATOR_CHAR);
+            AssignmentResult res = IterativeHmmClusterer.initialClusterAssignment(coreClusters, databaseClusters, 12.0, 3, 1.2, 24);
+            threadPool.shutdown();
+            seqs.addAll(res.getDatabaseSequences());
+            System.out.println(res.getClusters().size());
+            FileIOManager.saveClusterSequencesToCsv(res.getClusters(), "/home/akrejci/Desktop/clusters.tsv", labels);
+            FileIOManager.saveUniqueSequencesToFasta(seqs, "/home/akrejci/Desktop/seqs.tsv");
+            
             parseArgs(args);
         } catch (CLIException e){
             errorLogger.logAndStderr("Error in command line arguments: " + e.getMessage());
