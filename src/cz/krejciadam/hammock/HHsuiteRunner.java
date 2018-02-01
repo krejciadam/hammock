@@ -348,7 +348,7 @@ class SingleThreadHHmakeRunner implements Callable<Void> {
         if (Settings.getInstance().getHhmakeParameters() != null) {
             parameters.addAll(Settings.getInstance().getHhmakeParameters());
         }
-        ExternalProcessRunner.runProcess(Settings.getInstance().getHhmakeCommand(), parameters, null, System.err, "While builidng HH for cluster " + cluster.getId() + " ");
+        ExternalProcessRunner.runProcess(Settings.getInstance().getHhmakeCommand(), parameters, null, System.err, "While builidng HH for cluster " + cluster.getId() + " ", Hammock.hhSuiteEnv);
         cluster.setAsHasHH();
         return null;
     }
@@ -412,7 +412,7 @@ class SingleThreadHHsearchRunner implements Callable<List<HHalignHit>> {
         if (Settings.getInstance().getHhsearchParameters() != null) {
             parameters.addAll(Settings.getInstance().getHhsearchParameters());
         }
-        ExternalProcessRunner.runProcess(Settings.getInstance().getHhsearchCommand(), parameters, null, System.err, "While running hhsearch for cluster " + alignedCluster.getId() + " ");
+        ExternalProcessRunner.runProcess(Settings.getInstance().getHhsearchCommand(), parameters, null, System.err, "While running hhsearch for cluster " + alignedCluster.getId() + " ", Hammock.hhSuiteEnv);
     }
 
     /**

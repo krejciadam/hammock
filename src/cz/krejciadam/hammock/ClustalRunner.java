@@ -153,7 +153,7 @@ class SingleThreadClustalRunner implements Callable<Void> {
         if (clustalParameters != null) {
             parameters.addAll(clustalParameters);
         }
-        ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "While builidng msa for cluster " + cluster.getId() + " ");
+        ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "While builidng msa for cluster " + cluster.getId() + " ", null);
 //        ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, null, null);
         cluster.setAsHasMSA();
         return null;
@@ -229,7 +229,7 @@ class SingleThreadExtendClusterRunnerClustal implements Callable<ExtendClusterRe
                 if (clustalParameters != null) {
                     parameters.addAll(clustalParameters);
                 }
-                ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ");
+                ExternalProcessRunner.runProcess(Settings.getInstance().getClustalCommand(), parameters, System.out, System.err, "while extending cluster " + extendedCluster.getId() + " ", null);
                 List<String> newClusterLines = FileIOManager.getAlignmentLines(Settings.getInstance().getMsaDirectory() + newCluster.getId() + "_testing.aln");
                 if (FileIOManager.checkAlnLength(newClusterLines, maxAlnLength)
                         && FileIOManager.checkBothInnerGaps(newClusterLines, Hammock.maxInnerGaps)

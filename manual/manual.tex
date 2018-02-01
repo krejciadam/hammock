@@ -30,7 +30,7 @@
 %   leqno number on the left and equation centered 
 %   fleqn number on the rigth and  equation on the left side
 %	
-\title{Hammock - Hidden Markov Model based clustering of short peptide sequences\\ \vspace{2 mm} {\large User's guide} \\ \vspace{2 mm} {\small version 1.1.2}}
+\title{Hammock - Hidden Markov Model based clustering of short peptide sequences\\ \vspace{2 mm} {\large User's guide} \\ \vspace{2 mm} {\small version 1.1.4}}
 \author{Adam Krejci  \\
 	Masaryk Memorial Cancer Institute\\
 	Brno, Czech Republic
@@ -49,11 +49,11 @@
 \maketitle
 
 \begin{center}
-\copyright Adam Krejci, 2015-2017 \\ \vspace{1cm}
+\copyright Adam Krejci, 2015-2018 \\ \vspace{1cm}
 Available under the GNU General Public License, \\
 see \url{http://www.gnu.org/licenses/} \\ \vspace{1cm}
 News, info and downloads at: \\
-\url{http://www.recamo.cz/en/software/hammock-cluster-peptides/} \\ \vspace{1cm}
+\url{https://github.com/krejciadam/hammock} \\ \vspace{1cm}
 We are happy to receive bug reports and questions. The preferred way of support is through the GitHub issues page : \\
  \url{https://github.com/krejciadam/hammock/issues}
 
@@ -84,11 +84,7 @@ If you find Hammock useful, please cite this article: \newline
 \label{prerequisities}
 Java, version at least 1.7.0 is required. Hammock also uses 3 external tools: Clustal Omega\cite{Sievers2011}, Hmmer 3.0\citep{Finn2011} and HHSuite\citep{Soding2004}. Compiled versions of these tools are part of Hammock, but we strongly recommend to recompile them on your system, as compatibility and performance issues may rise otherwise. If you already have some of these tools installed or placed somewhere on your system, you may change the default path or command used by Hammock in the settings file (see \ref{settings.propfile} for details). 
 
-To run hhsuite, it is needed to set up en environment variable called \texttt{HHLIB} containing the path to hhsuite's \texttt{lib/hh} directory. This must be done before running Hammock. On Unix-like systems, \texttt{HHLIB} variable may be set for example this way: \newline
-
-\verb|export HHLIB=~/Hammock/hhsuite-2.0.16/lib/hh/|\\
-
-See hhsuite manual for more details.
+If HHSuite is located in other than the default Hammock/hhsuite-2.0.16 folder, you have to set up an environmental variable called \texttt{HHLIB} containing the path to HHSuite's \texttt{lib/hh} directory. This must be done before running Hammock. See the HHSuite manual for more details. Also note that the newest beta versions of HHSuite (3.x) are not compatible with Hammock. 
 
 
 \section{How Hammock works}
@@ -293,13 +289,12 @@ First, we move to appropriate folder (Suppose \texttt{Hammock} is placed in home
 \noindent
 \texttt{\$ cd \textasciitilde/Hammock/examples/MUSI/}\newline
 
-We start by typing in commands from quick start \ref{quickStart}.\newline
+We start by typing in the command from quick start \ref{quickStart}.\newline
 
 \noindent
-\texttt{\$ export HHLIB=\textasciitilde/Hammock/hhsuite-2.0.16/lib/hh/}\newline
 \texttt{\$ java -jar ../../dist/Hammock.jar full -i musi.fa}\newline
 
-The first command sets an environment variable, that is needed for hhsuite to run, the second command runs Hammock in \texttt{full} mode, leaving all parameters set to default values.
+It runs Hammock in \texttt{full} mode, leaving all parameters set to default values.
 
 When the execution finishes, a folder called \texttt{Hammock\_result\_1} appers in \texttt{dist} folder. Folder contains several files and subfolders. To see brief overview of the results, we can inspect file \texttt{final\_clusters.csv}.\newline
 
@@ -383,8 +378,7 @@ The Galaxy version only supports runs in \texttt{full} mode. See \ref{parameters
 \subsection{Quick start}
 \label{quickStart}
 \begin{itemize}
-\item[]\verb|export HHLIB=~/Hammock/hhsuite-2.0.16/lib/hh/|\\
-\verb|java -jar ~/Hammock/dist/Hammock.jar full -i ~/Hammock/examples/musi.fa|
+\item[]\verb|java -jar ~/Hammock/dist/Hammock.jar full -i ~/Hammock/examples/musi.fa|
 
 \end{itemize}
 
@@ -604,7 +598,7 @@ See section \ref{filesandformats} for information on file formats.
 	  	  	  	  \item[-y, --max\_gap\_proportion \rm \textlangle \textit{float}\textrangle] 
 	  	  	  	  Defines maximal proportion of gaps in conserved positions. Any multiple sequence alignment column containing more gaps will not be considered a conserved position.
 	  	  
-	  	  \textit{Default}: 0.05
+	  	  \textit{Default}: 0.2
 	  	  
 \begin{sloppypar}	
 	  	  
