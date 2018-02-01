@@ -139,16 +139,16 @@ public class Hammock {
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
-            List<Cluster> clusters = FileIOManager.loadClustersFromCsv("/home/akrejci/NetBeansProjects/Hammock/dist/Hammock_result_4/initial_clusters_sequences.tsv", true);
+            List<Cluster> clusters = FileIOManager.loadClustersFromCsv("/home/akrejci/NetBeansProjects/Hammock/dist/Hammock_result_1/initial_clusters_sequences.tsv", true);
             List<Cluster> coreClusters = new ArrayList<>();
             List<Cluster> databaseClusters = new ArrayList<>();
             Collections.sort(clusters, Collections.reverseOrder());
             List<UniqueSequence> seqs = new ArrayList<>();
             for (int i = 0; i < clusters.size(); i++){
-                if (i < 250){
+                if (i < 25){
                     coreClusters.add(clusters.get(i));
                 } else{
-                    if (clusters.get(i).size() >= 3 && i < 750){
+                    if (clusters.get(i).size() >= 3 && i < 75){
                         databaseClusters.add(clusters.get(i));
                     }
                     else{
@@ -160,16 +160,24 @@ public class Hammock {
             for (Cluster cl : coreClusters){
                 size += cl.getUniqueSize();
             }
+            System.out.println(size);
             System.out.println(coreClusters.size());
-            threadPool = Executors.newFixedThreadPool(nThreads);
+            threadPool = Executors.newFixedThreadPool(8);
             hhSuiteEnv = new HashMap<>();
             innerGapsAllowed = false;
+            minConservedPositions = 3;
+            maxAlnLength = 24;
             labels = getSortedLabels(coreClusters.get(0).getSequences());
             hhSuiteEnv.put("HHLIB", "/home/akrejci/NetBeansProjects/Hammock" + SEPARATOR_CHAR + "hhsuite-2.0.16" + SEPARATOR_CHAR + "lib" + SEPARATOR_CHAR + "hh" + SEPARATOR_CHAR);
-            AssignmentResult res = IterativeHmmClusterer.initialClusterAssignment(coreClusters, databaseClusters, 12.0, 3, 1.2, 24);
+            AssignmentResult res = IterativeHmmClusterer.initialClusterAssignment(coreClusters, databaseClusters, 12.0);
             threadPool.shutdown();
             seqs.addAll(res.getDatabaseSequences());
             System.out.println(res.getClusters().size());
+            size = 0;
+            for (Cluster cl : res.getClusters()){
+                size += cl.getUniqueSize();
+            }
+            System.out.println(size);
             FileIOManager.saveClusterSequencesToCsv(res.getClusters(), "/home/akrejci/Desktop/clusters.tsv", labels);
             FileIOManager.saveUniqueSequencesToFasta(seqs, "/home/akrejci/Desktop/seqs.tsv");
             

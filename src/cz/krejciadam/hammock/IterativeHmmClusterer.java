@@ -31,10 +31,8 @@ public class IterativeHmmClusterer {
     public static AssignmentResult initialClusterAssignment(
             Collection<Cluster> coreClusters,
             Collection<Cluster> databaseClusters,
-            double scoreThreshold,
-            Integer minMatchStates,
-            Double minIc,
-            int maxAlnLength) throws Exception {
+            double scoreThreshold) 
+            throws Exception {
 
         List<HHalignHit> hits = new ArrayList<>();
         HHsuiteRunner.buildHHs(coreClusters, Hammock.threadPool);
@@ -68,31 +66,14 @@ public class IterativeHmmClusterer {
 
         List<Cluster> newClusters = new ArrayList<>();
         List<UniqueSequence> remainingSequences = new ArrayList<>();
+        CompletionService<AssignmentResult> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
         for (Map.Entry<Cluster, List<HHalignHit>> entry : extensionMap.entrySet()) {
-            List<HHalignHit> hitList = entry.getValue();
-            Collections.sort(hitList, Collections.reverseOrder());
-            Cluster newCluster = entry.getKey();
-            for (int i = 0; i < hitList.size(); i++) {
-                HHalignHit oldHit = hitList.get(i);
-                System.out.println(newCluster.getId() + " " + oldHit.getFoundCluster().getId());
-                HHsuiteRunner.buildHH(newCluster);
-                HHalignHit hit = HHsuiteRunner.alignClusters(newCluster, oldHit.getFoundCluster(), Hammock.threadPool);
-                if (hit.getScore() >= scoreThreshold) { //might not be true for the later clusters
-                    Cluster tempCluster = HHsuiteRunner.mergeClusters(hit, -newCluster.getId());
-                    List<String> tempClusterLines = FileIOManager.getAlignmentLines(tempCluster);
-                    if (Statistics.checkCorrelation(hit.getSearchedCluster(), hit.getFoundCluster(), Hammock.minCorrelation)
-                            && (FileIOManager.checkConservedStates(tempClusterLines, minMatchStates, minIc, Hammock.maxGapProportion))
-                            && (FileIOManager.checkBothInnerGaps(tempClusterLines, Hammock.maxInnerGaps))
-                            && (FileIOManager.checkAlnLength(tempClusterLines, maxAlnLength))) { //satisfies conditions
-                        newCluster = HHsuiteRunner.mergeClusters(hit, newCluster.getId());
-                    }else{
-                        remainingSequences.addAll(hit.getFoundCluster().getSequences());
-                    }
-                } else{
-                    remainingSequences.addAll(hit.getFoundCluster().getSequences());
-                }
-            }
-            newClusters.add(newCluster);   
+            resultPool.submit(new hhExtensionRunner(entry.getKey(), entry.getValue(), scoreThreshold));
+        }
+        for (int i = 0; i < extensionMap.size(); i++){
+            AssignmentResult res = resultPool.take().get();
+            newClusters.addAll(res.getClusters());
+            remainingSequences.addAll(res.getDatabaseSequences());
         }
         for (Cluster cl : coreClusters){
             if (!(extensionMap.keySet().contains(cl))){
@@ -616,4 +597,50 @@ class hhClusteringRunner implements Callable<List<Cluster>> {
         return IterativeHmmClusterer.hhClustering(clusters, scoreThreshold, minMatchStates, minIc, maxAlnLength, lowThreadPool);
     }
 
+}
+
+class hhExtensionRunner implements Callable<AssignmentResult>{
+    private final Cluster extendedCluster;
+    private final List<HHalignHit> hitList;
+    private final double scoreThreshold;
+
+    public hhExtensionRunner(Cluster extendedCluster, List<HHalignHit> hitList, double scoreThreshold) {
+        this.extendedCluster = extendedCluster;
+        this.hitList = hitList;
+        this.scoreThreshold = scoreThreshold;
+    }
+
+    @Override
+    public AssignmentResult call() throws Exception {
+        Collections.sort(hitList, Collections.reverseOrder());
+        Cluster newCluster = extendedCluster;
+        List<UniqueSequence> remainingSequences = new ArrayList<>();
+        for (int i = 0; i < hitList.size(); i++) {
+            HHalignHit oldHit = hitList.get(i);
+            HHalignHit hit;
+            if (i > 0){
+                HHsuiteRunner.buildHH(newCluster);
+                hit = HHsuiteRunner.alignClusters(newCluster, oldHit.getFoundCluster());
+            } else{
+                hit = oldHit; //The first hit in the list => could not have changed
+            }
+            if (hit.getScore() >= scoreThreshold) { //might not be true for the later clusters
+                Cluster tempCluster = HHsuiteRunner.mergeClusters(hit, -newCluster.getId());
+                List<String> tempClusterLines = FileIOManager.getAlignmentLines(tempCluster);
+                 if (Statistics.checkCorrelation(hit.getSearchedCluster(), hit.getFoundCluster(), Hammock.minCorrelation)
+                            && (FileIOManager.checkConservedStates(tempClusterLines, Hammock.minConservedPositions, Hammock.minIc, Hammock.maxGapProportion))
+                            && (FileIOManager.checkBothInnerGaps(tempClusterLines, Hammock.maxInnerGaps))
+                            && (FileIOManager.checkAlnLength(tempClusterLines, Hammock.maxAlnLength))) {
+                     newCluster = HHsuiteRunner.mergeClusters(hit, newCluster.getId());
+                 } else{
+                     remainingSequences.addAll(hit.getFoundCluster().getSequences());
+                 }
+            } else{
+                remainingSequences.addAll(hit.getFoundCluster().getSequences());
+            }
+        }
+        List<Cluster> resList = new ArrayList<>();
+        resList.add(newCluster);
+        return new AssignmentResult(resList, remainingSequences);
+    }   
 }

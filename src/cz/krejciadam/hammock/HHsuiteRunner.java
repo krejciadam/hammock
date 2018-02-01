@@ -114,10 +114,11 @@ public class HHsuiteRunner {
         return result;
     }
     
-    public static HHalignHit alignClusters(Cluster alignedCluster, Cluster searchedCluster, ExecutorService threadPool) throws Exception{
+    public static HHalignHit alignClusters(Cluster alignedCluster, Cluster searchedCluster) throws Exception{
         List<Cluster> tempList = new ArrayList<>();
         tempList.add(searchedCluster);
-        List<HHalignHit> resList = alignHmmList(alignedCluster, tempList, threadPool);
+        Callable<List<HHalignHit>> callable = new SingleThreadHHsearchRunner(alignedCluster, tempList, "" + alignedCluster.getId() + "_" + 0);
+        List<HHalignHit> resList = callable.call();
         return(resList.get(0));
     }
 
