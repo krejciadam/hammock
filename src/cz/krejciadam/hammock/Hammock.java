@@ -106,7 +106,7 @@ public class Hammock {
     public static boolean relativeHmmScore = false;
     public static Integer minConservedPositions = null;
     public static Double minIc = 1.2;
-    public static Double maxGapProportion = 0.05;
+    public static Double maxGapProportion = 0.2;
     public static Integer maxAlnLength = null;
     public static int maxInnerGaps = 0;
     public static Boolean innerGapsAllowed = null;

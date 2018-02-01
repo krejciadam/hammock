@@ -1,7 +1,11 @@
 # Hammock changelog
 ## Version 1.1.4
-### date
-- There is no longer need to set the `HHLIB` environmental variable manually.
+### 2018-02-01
+- If the `HHLIB` environmental variable is not set, Hammock will set it manually (expecting standard Hammock folder structure)
+- The default value of -y, --max_gap_proportion was changed to 0.2. 
+- hmmer parameters changed so that Hammock should never use more cores than specified by -t --threads. This should no longer cause problems in supercomputing environments (Torque, PBS, etc.)
+- It is now possible to load unordered cluster-sequence files. Nevertheless, it is recommended to use ordered files when possible, as sequence order might slightly influence the results.
+
 
 ## Version 1.1.3
 ### 2017-12-11
