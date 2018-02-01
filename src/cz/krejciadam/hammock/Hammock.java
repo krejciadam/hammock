@@ -669,7 +669,7 @@ public class Hammock {
         if (Hammock.filterBeforeAssignment) {
             scorer = new LocalAlignmentScorer(scoringMatrix, gapOpenPenalty, gapExtendPenalty);
         }
-        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, mergeThresholdSequence, fullHHClustering, minConservedPositions, minIc, Hammock.maxAlnLength, scorer, nThreads);
+        AssignmentResult result = IterativeHmmClusterer.iterativeHmmClustering(toCluster, databaseSequences, assignThresholdSequence, overlapThresholdSequence, mergeThresholdSequence, fullHHClustering, scorer, nThreads);
         List<Cluster> resultingClusters = result.getClusters();
         int origSize = resultingClusters.size();
         resultingClusters = filterClustersForSize(resultingClusters, minClusterSize, minClusterUniqueSize);

@@ -70,9 +70,6 @@ public class IterativeHmmClusterer {
             double[] hmmsearchOverlapThresholdSequence,
             double[] hhClusteringThresholdSequence,
             boolean[] fullHHClustering,
-            Integer minMatchStates,
-            Double minIc,
-            int maxAlnLength,
             SequenceScorer scorer,
             int nThreads) throws IOException, InterruptedException, ExecutionException, Exception {
 
@@ -144,7 +141,7 @@ public class IterativeHmmClusterer {
 
                 Hammock.logger.logAndStderr("HH clustering...");
 
-                List<List<Cluster>> clusterLists = (parallelHHClustering(mergeGroups, hhClusteringThreshold, minMatchStates, minIc, maxAlnLength));
+                List<List<Cluster>> clusterLists = (parallelHHClustering(mergeGroups, hhClusteringThreshold));
                 for (List<Cluster> list : clusterLists) {
                     currentClusters.addAll(list);
                 }
@@ -414,12 +411,12 @@ public class IterativeHmmClusterer {
      * @throws InterruptedException
      * @throws ExecutionException
      */
-    private static List<List<Cluster>> parallelHHClustering(Set<Set<Cluster>> clusterGroups, Double scoreThreshold, Integer minMatchStates, Double minIc, int maxAlnLength) throws InterruptedException, ExecutionException {
+    private static List<List<Cluster>> parallelHHClustering(Set<Set<Cluster>> clusterGroups, Double scoreThreshold) throws InterruptedException, ExecutionException {
         ExecutorService lowThreadPool = Executors.newFixedThreadPool(Hammock.nThreads);
         CompletionService<List<Cluster>> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
 
         for (Collection<Cluster> clusterGroup : clusterGroups) {
-            resultPool.submit(new hhClusteringRunner(clusterGroup, scoreThreshold, minMatchStates, minIc, maxAlnLength, lowThreadPool));
+            resultPool.submit(new hhClusteringRunner(clusterGroup, scoreThreshold, lowThreadPool));
         }
         List<List<Cluster>> result = new ArrayList<>();
         for (int i = 0; i < clusterGroups.size(); i++) {
@@ -448,7 +445,7 @@ public class IterativeHmmClusterer {
      * @throws IOException
      * @throws DataException
      */
-    public static List<Cluster> hhClustering(Collection<Cluster> initialClusters, Double scoreThreshold, Integer minMatchStates, Double minIc, int maxAlnLength, ExecutorService lowThreadPool) throws InterruptedException, ExecutionException, IOException, DataException, Exception {
+    public static List<Cluster> hhClustering(Collection<Cluster> initialClusters, Double scoreThreshold, ExecutorService lowThreadPool) throws InterruptedException, ExecutionException, IOException, DataException, Exception {
         List<Cluster> clusterList = new ArrayList<>();
         clusterList.addAll(initialClusters);
 
@@ -481,9 +478,9 @@ public class IterativeHmmClusterer {
                 HHsuiteRunner.buildHH(tempCluster);
                 List<String> tempClusterLines = FileIOManager.getAlignmentLines(tempCluster);
                 if (Statistics.checkCorrelation(firstPair.getSearchedCluster(), firstPair.getFoundCluster(), Hammock.minCorrelation)
-                        && (FileIOManager.checkConservedStates(tempClusterLines, minMatchStates, minIc, Hammock.maxGapProportion))
+                        && (FileIOManager.checkConservedStates(tempClusterLines, Hammock.minConservedPositions, Hammock.minIc, Hammock.maxGapProportion))
                         && (FileIOManager.checkBothInnerGaps(tempClusterLines, Hammock.maxInnerGaps))
-                        && (FileIOManager.checkAlnLength(tempClusterLines, maxAlnLength))) { //satisfies conditions
+                        && (FileIOManager.checkAlnLength(tempClusterLines, Hammock.maxAlnLength))) { //satisfies conditions
                     clusterList.remove(firstPair.getBiggerCluster());
                     clusterList.remove(firstPair.getSmallerCluster());
                     Set<HHalignHit> newHitSet = new HashSet<>();
@@ -521,23 +518,17 @@ class hhClusteringRunner implements Callable<List<Cluster>> {
     private final Collection<Cluster> clusters;
     private final Double scoreThreshold;
     private final ExecutorService lowThreadPool;
-    private final Integer minMatchStates;
-    private final Double minIc;
-    private final int maxAlnLength;
 
-    public hhClusteringRunner(Collection<Cluster> clusters, Double scoreThreshold, Integer minMatchStates, Double minIc, int maxAlnLength, ExecutorService lowThreadPool) {
+    public hhClusteringRunner(Collection<Cluster> clusters, Double scoreThreshold, ExecutorService lowThreadPool) {
         this.clusters = clusters;
         this.scoreThreshold = scoreThreshold;
         this.lowThreadPool = lowThreadPool;
-        this.minMatchStates = minMatchStates;
-        this.minIc = minIc;
-        this.maxAlnLength = maxAlnLength;
 
     }
 
     @Override
     public List<Cluster> call() throws Exception {
-        return IterativeHmmClusterer.hhClustering(clusters, scoreThreshold, minMatchStates, minIc, maxAlnLength, lowThreadPool);
+        return IterativeHmmClusterer.hhClustering(clusters, scoreThreshold, lowThreadPool);
     }
 
 }
