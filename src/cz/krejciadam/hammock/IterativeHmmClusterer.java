@@ -625,7 +625,7 @@ class hhExtensionRunner implements Callable<AssignmentResult>{
                 hit = oldHit; //The first hit in the list => could not have changed
             }
             if (hit.getScore() >= scoreThreshold) { //might not be true for the later clusters
-                Cluster tempCluster = HHsuiteRunner.mergeClusters(hit, -newCluster.getId());
+                Cluster tempCluster = HHsuiteRunner.mergeClusters(hit, -newCluster.getId() - 1);
                 List<String> tempClusterLines = FileIOManager.getAlignmentLines(tempCluster);
                  if (Statistics.checkCorrelation(hit.getSearchedCluster(), hit.getFoundCluster(), Hammock.minCorrelation)
                             && (FileIOManager.checkConservedStates(tempClusterLines, Hammock.minConservedPositions, Hammock.minIc, Hammock.maxGapProportion))

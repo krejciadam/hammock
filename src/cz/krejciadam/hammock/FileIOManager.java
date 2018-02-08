@@ -1289,7 +1289,13 @@ public class FileIOManager {
         for (String line : alignmentLines.subList(1, alignmentLines.size())) {
             char[] aas = line.trim().toCharArray();
             for (int i = 0; i < lineLength; i++) {
-                Integer count = positionLetterCounts.get(i).get(aas[i]);
+                Integer count = null;
+                try{
+                count = positionLetterCounts.get(i).get(aas[i]);
+                } catch(ArrayIndexOutOfBoundsException e){
+                    System.out.println(line);
+                    System.exit(1);
+                }
                 if (count == null) {
                     count = 0;
                 }
