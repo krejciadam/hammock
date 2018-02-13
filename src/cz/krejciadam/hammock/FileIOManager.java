@@ -902,66 +902,6 @@ public class FileIOManager {
         return res.toString();
     }
 
-    /**
-     * Creates an alignment out of a greedy incremental clustering result
-     *
-     * @param pivot The central sequence of the greedy cluster
-     * @param results Sequences aligned to the pivot
-     * @param clusterId The cluster id to be part of the result
-     * @return A string containing the alignment in the form of a .aln (aligned
-     * fasta) file.
-     * @throws IOException
-     */
-    public static String makeShiftedClusterAlignment(UniqueSequence pivot, List<AligningScorerResult> results, int clusterId) throws IOException {
-        int maxLengthPlusShift = pivot.getSequence().length; //if everything is shifted to left or short, pivot is the longest
-        int minShift = 0;
-        for (AligningScorerResult result : results) {
-            if (result.getShift() < minShift) {
-                minShift = result.getShift();
-            }
-            if ((result.getSequence().getSequence().length + result.getShift()) > maxLengthPlusShift) {
-                maxLengthPlusShift = result.getSequence().getSequence().length + result.getShift();
-            }
-        }
-        StringBuilder alignment = new StringBuilder();
-        int index = 0;
-        alignment.append(">").append(clusterId).append("_").append(index).append("\n");
-        for (int i = 0; i < Math.abs(minShift); i++) {
-            alignment.append('-');
-        }
-        alignment.append(pivot.getSequenceString());
-        for (int i = 0; i < (maxLengthPlusShift - pivot.getSequence().length); i++) {
-            alignment.append('-');
-        }
-        alignment.append("\n");
-        for (AligningScorerResult result : results) {
-            index++;
-            alignment.append(">").append(clusterId).append("_").append(index).append("\n");
-            int actualGapsLeft;
-            int actualGapsRight;
-            if (result.getShift() <= 0) {
-                actualGapsLeft = Math.abs(minShift) - Math.abs(result.getShift());
-                actualGapsRight = maxLengthPlusShift - result.getSequence().getSequence().length + (Math.abs(minShift) - actualGapsLeft);
-            } else {
-                actualGapsRight = maxLengthPlusShift - (result.getSequence().getSequence().length + result.getShift());
-                actualGapsLeft = Math.abs(minShift) + result.getShift();
-            }
-            for (int i = 0; i < actualGapsLeft; i++) {
-                alignment.append('-');
-            }
-            alignment.append(result.getSequence().getSequenceString());
-            for (int i = 0; i < actualGapsRight; i++) {
-                alignment.append('-');
-            }
-            if (index <= results.size()) {
-                alignment.append('\n');
-            }
-            if (pivot.getSequenceString().equals(result.getSequence().getSequenceString())) {
-                throw new IOException("Error. Duplicate pivot.");
-            }
-        }
-        return (alignment.toString());
-    }
 
     /**
      * For every cluster, saves the path to its appropriate .hmm file in
@@ -1363,10 +1303,10 @@ public class FileIOManager {
      * @throws InterruptedException
      */
     public static void alnToA2M(Cluster cluster) throws IOException, InterruptedException, DataException {
-        aln2a2m(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
+        alnToA2M(Settings.getInstance().getMsaDirectory() + cluster.getId() + ".aln", Settings.getInstance().getMsaDirectory() + cluster.getId() + ".a2m", Hammock.maxGapProportion, Hammock.minIc, Hammock.innerGapsAllowed);
     }
 
-    private static void aln2a2m(String inFile, String outFile, Double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException, DataException {
+    private static void alnToA2M(String inFile, String outFile, Double maxGapProportion, double minIc, boolean allowInnerGaps) throws IOException, DataException {
         List<Boolean> matchStates = defineMatchStates(getAlignmentLines(inFile), maxGapProportion, minIc, allowInnerGaps);
         try (BufferedReader reader = new BufferedReader(new FileReader(inFile)); BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
             String line;
@@ -1401,41 +1341,6 @@ public class FileIOManager {
         }
     }
 
-    /**
-     * transforms msa in selex format from inFile to msa in aln format and saves
-     * it to outFile.
-     *
-     * @param inFile
-     * @param outFile
-     * @throws IOException
-     */
-    public static void selex2aln(String inFile, String outFile) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new FileReader(inFile)); BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
-            reader.readLine(); //omit first line
-            String line;
-            while ((line = reader.readLine()) != null) {
-                String[] splitLine = line.split("\\s+");
-                StringBuilder newLine = new StringBuilder();
-                for (char aa : splitLine[1].toCharArray()) {
-                    switch (aa) {
-                        case '.':
-                            newLine.append('-');
-                            break;
-                        case '-':
-                            newLine.append('-');
-                            break;
-                        default:
-                            newLine.append(Character.toUpperCase(aa));
-                            break;
-                    }
-                }
-                writer.write(">" + splitLine[0] + "\n");
-                writer.write(newLine.toString() + "\n");
-            }
-        } catch (IOException e) {
-            throw new IOException(e);
-        }
-    }
 
     /**
      * Gets the length of the first line of a file

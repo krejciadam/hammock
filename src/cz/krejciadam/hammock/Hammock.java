@@ -84,8 +84,6 @@ public class Hammock {
     private static String order = "size";
     private static Integer initialClustersLimit = null;
 
-    public static Map<Integer, UniqueSequence> pivotMap = null;                 //this should be solved another way, without global variables
-    public static Map<Integer, List<AligningScorerResult>> foundSeqsMap = null; //this should be solved another way, without global variables
     
     //clinkage
     private static int cacheSizeLimit = 1;
@@ -425,52 +423,6 @@ public class Hammock {
         FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels);
         if (!inGalaxy) {
             FileIOManager.saveClusterSequencesToCsvOrdered(clusters, initialClustersSequencesOrderedCsv, labels, initialSequences);
-            FileIOManager.SaveClustersToCsv(clusters, initialClusters, labels);
-        }
-        logger.logAndStderr("Greedy clustering results in: " + initialClusters);
-        logger.logAndStderr("and: " + initialClustersSequencesCsv);
-        logger.logAndStderr("and: " + initialClustersSequencesOrderedCsv);
-    }
-    
-    /**
-     * Legacy method. Runs the old greedy clustering routine
-     *
-     * @throws IOException
-     * @throws FileFormatException
-     * @throws HammockException
-     * @throws InterruptedException
-     * @throws ExecutionException
-     */
-    private static void runLegacyGreedyClustering(List<UniqueSequence> sequences) throws IOException, FileFormatException, HammockException, InterruptedException, ExecutionException {
-        
-        prepareSequenceClustering(sequences);
-        
-        if (sequenceClusteringThreshold == null) {
-            sequenceClusteringThreshold = setGreedyThreshold(sequences);
-            logger.logAndStderr("Greedy clustering threshold not set. Setting automatically to: " + sequenceClusteringThreshold);
-        }
-        
-        
-        SequenceClusterer clusterer;
-        AligningSequenceScorer scorer = new ShiftedScorer(scoringMatrix, shiftPenalty, maxShift);
-
-        clusterer = new IncrementalGreedySequenceClusterer(sequenceClusteringThreshold);
-        logger.logAndStderr("Greedy clustering...");
-        Long time = System.currentTimeMillis();
-        sequences = UniqueSequence.sortSequences(sequences, order);
-        List<Cluster> clusters = clusterer.cluster(sequences, scorer);
-        logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
-        logger.logAndStderr("Resulting clusers: " + clusters.size());
-        logger.logAndStderr("Building MSAs...");
-        Map<Cluster, String> alignmentsMap = new HashMap<>();
-        for (Cluster cl : clusters) {
-            alignmentsMap.put(cl, FileIOManager.makeShiftedClusterAlignment(pivotMap.get(cl.getId()), foundSeqsMap.get(cl.getId()), cl.getId()));
-        }
-        logger.logAndStderr("Ready. Total time: " + (System.currentTimeMillis() - time));
-        logger.logAndStderr("Saving results to output files...");
-        FileIOManager.saveClusterSequencesToCsv(clusters, initialClustersSequencesCsv, labels, alignmentsMap);
-        if (!inGalaxy) {
-            FileIOManager.saveClusterSequencesToCsvOrdered(clusters, initialClustersSequencesOrderedCsv, labels, initialSequences, alignmentsMap);
             FileIOManager.SaveClustersToCsv(clusters, initialClusters, labels);
         }
         logger.logAndStderr("Greedy clustering results in: " + initialClusters);
