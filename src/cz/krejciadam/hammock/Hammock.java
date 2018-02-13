@@ -90,6 +90,9 @@ public class Hammock {
     //clinkage
     private static int cacheSizeLimit = 1;
     
+    //initial extension
+    private static Double initialExtensionThreshold = null;
+    
     //hmm
     private static boolean unique = false;
     private static Integer sizeThreshold = null;
@@ -112,6 +115,7 @@ public class Hammock {
     public static Boolean innerGapsAllowed = null;
     public static boolean extensionIncreaseLength = false;
     public static Map<String, String> hhSuiteEnv = null;
+    
     //hmm - filtering
     public static boolean filterBeforeAssignment = false;
     public static int sequenceAddThreshold = 12;
@@ -655,10 +659,15 @@ public class Hammock {
         }
         if (overlapThresholdSequence == null) {
             overlapThresholdSequence = setOverlapThresholdSequence(inClusters);
-        }
+        }                
         if (mergeThresholdSequence == null) {
             mergeThresholdSequence = setHhMergeThresholdSequence(inClusters);
         }
+        
+        if (initialExtensionThreshold == null) {
+            initialExtensionThreshold = mergeThresholdSequence[0] * 1.1;
+            logger.logAndStderr("Initial extension threshold not set. Setting automatically on the basis of merge threshold sequence to: " + initialExtensionThreshold);
+        } 
 
         if ((overlapThresholdSequence.length != assignThresholdSequence.length)
                 || (mergeThresholdSequence.length != assignThresholdSequence.length)) {
@@ -714,7 +723,7 @@ public class Hammock {
         List<Cluster> toAdd = toCluster.subList(countThreshold, toCluster.size());
         toCluster = toCluster.subList(0, countThreshold);
         logger.logAndStderr("Initial cluster extension...");
-        AssignmentResult increasedClusters = IterativeHmmClusterer.initialClusterAssignment(toCluster, toAdd, mergeThresholdSequence[0] * 1.1);
+        AssignmentResult increasedClusters = IterativeHmmClusterer.initialClusterAssignment(toCluster, toAdd, initialExtensionThreshold);
         toCluster = increasedClusters.getClusters();
         databaseSequences.addAll(increasedClusters.getDatabaseSequences());
         
@@ -1124,9 +1133,18 @@ public class Hammock {
                     continue;
                 }
             }
+            
             if (args[i].equals("-a") || args[i].equals("--part_threshold")) {
                 if (args.length > i + 1) {
                     partThreshold = Double.parseDouble(args[i + 1]);
+                    i++;
+                    continue;
+                }
+            }
+            
+            if (args[i].equals("-E") || args[i].equals("--initial_extension_threshold")) {
+                if (args.length > i + 1) {
+                    initialExtensionThreshold = Double.parseDouble(args[i + 1]);
                     i++;
                     continue;
                 }
@@ -1563,7 +1581,7 @@ public class Hammock {
                 result[i] = (double) Math.round(result[i] * 100) / 100;
             }
         } else {
-            logger.logAndStderr("Overlap threshold not set. Setting automatically based on assign threshold sequence to: ");
+            logger.logAndStderr("Overlap threshold not set. Setting automatically on the basis of assign threshold sequence to: ");
             result = new double[assignThresholdSequence.length];
             for (int i = 0; i < assignThresholdSequence.length; i++) {
                 result[i] = assignThresholdSequence[i] * 0.75;
@@ -1583,7 +1601,7 @@ public class Hammock {
     private static double[] setHhMergeThresholdSequence(Collection<Cluster> clusters) {
         double[] result;
         if (assignThresholdSequence.length == 3) {
-            logger.logAndStderr("Merge threshold not set. Setting automatically based on average sequence length to: ");
+            logger.logAndStderr("Merge threshold not set. Setting automatically on the basis of average sequence length to: ");
             double meanLength = getClusterMeanSequenceLength(clusters);
             if (relativeHHScore) {
                 result = new double[]{meanLength * 0.125, meanLength * 0.115, meanLength * 0.110};
@@ -1859,7 +1877,7 @@ public class Hammock {
 }
 
 /**
- * Compares clusters based on size. If sizes are equal, compares based on id.
+ * Compares clusters on the basis of size. If sizes are equal, compares on the basis of id.
  *
  */
 class ClusterSizeIdComparator implements Comparator<Cluster> {
@@ -1875,7 +1893,7 @@ class ClusterSizeIdComparator implements Comparator<Cluster> {
 }
 
 /**
- * Compares clusters based on unique size. If sizes are equal, compares based on id.
+ * Compares clusters on the basis of unique size. If sizes are equal, compares on the basis of id.
  *
  */
 class ClusterUniqueSizeIdComparator implements Comparator<Cluster> {

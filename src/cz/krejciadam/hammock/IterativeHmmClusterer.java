@@ -33,6 +33,15 @@ public class IterativeHmmClusterer {
             Collection<Cluster> databaseClusters,
             double scoreThreshold) 
             throws Exception {
+        
+        if (scoreThreshold < 0){
+            Hammock.logger.logAndStderr("Initial cluster extension threshold is negative. Skipping initial extension step.");
+            List<UniqueSequence> sequences = new ArrayList<>();
+            for (Cluster cl : databaseClusters){
+                sequences.addAll(cl.getSequences());
+            }
+            return(new AssignmentResult(coreClusters, sequences));
+        }
 
         List<HHalignHit> hits = new ArrayList<>();
         HHsuiteRunner.buildHHs(coreClusters, Hammock.threadPool);
