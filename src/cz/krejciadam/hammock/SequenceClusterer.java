@@ -14,14 +14,13 @@ import java.util.concurrent.ExecutionException;
  */
 public interface SequenceClusterer {
     /**
-     * Clusters a collection of sequences using a sequence-sequence scoring scheme of choice.
+     * Clusters a collection of sequences.
      * @param sequences Sequences to be clustered.
-     * @param scorer Scorer to be used to calculate sequence-sequence scores.
      * @return A collection of clusters.
      * @throws InterruptedException
      * @throws ExecutionException
      * @throws DataException 
      */
-    public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer scorer) throws InterruptedException, ExecutionException, DataException;
+    public List<Cluster> cluster(List<UniqueSequence> sequences) throws InterruptedException, ExecutionException, DataException;
     
 }

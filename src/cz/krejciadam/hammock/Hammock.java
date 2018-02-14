@@ -394,13 +394,13 @@ public class Hammock {
             logger.logAndStderr("Initial greedy clusters limit not set. Setting automatically to: " + initialClustersLimit);
         }
         AligningSequenceScorer scorer = new ShiftedScorer(scoringMatrix, shiftPenalty, maxShift);
-        SequenceClusterer clusterer = new LimitedGreedySequenceClusterer(sequenceClusteringThreshold, initialClustersLimit);
+        SequenceClusterer clusterer = new LimitedGreedySequenceClusterer(scorer, sequenceClusteringThreshold, initialClustersLimit);
         
         logger.logAndStderr("Greedy clustering...");
         Long time = System.currentTimeMillis();
         sequences = UniqueSequence.sortSequences(sequences, order);
         
-        List<Cluster> clusters = clusterer.cluster(sequences, scorer);
+        List<Cluster> clusters = clusterer.cluster(sequences);
         
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
@@ -450,10 +450,10 @@ public class Hammock {
         
         SequenceClusterer clusterer;
         ShiftedScorer scorer = new ShiftedScorer(scoringMatrix, shiftPenalty, maxShift);
-        clusterer = new ClinkageSequenceClusterer(sequenceClusteringThreshold);
+        clusterer = new ClinkageSequenceClusterer(scorer, sequenceClusteringThreshold);
         logger.logAndStderr("Clinkage clustering...");
         Long time = System.currentTimeMillis();
-        List<Cluster> clusters = clusterer.cluster(sequences, scorer);
+        List<Cluster> clusters = clusterer.cluster(sequences);
         logger.logAndStderr("Ready. Clustering time: " + (System.currentTimeMillis() - time));
         logger.logAndStderr("Resulting clusers: " + clusters.size());
         logger.logAndStderr("Building MSAs...");

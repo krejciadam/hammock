@@ -17,17 +17,18 @@ import java.util.concurrent.ExecutorCompletionService;
 public class LimitedGreedySequenceClusterer implements SequenceClusterer {
     private final int threshold;
     private final int maxClusters;
+    private final AligningSequenceScorer sequenceScorer;
 
-    public LimitedGreedySequenceClusterer(int threshold, int maxClusters) {
+    public LimitedGreedySequenceClusterer(AligningSequenceScorer sequenceScorer, int threshold, int maxClusters) {
         this.threshold = threshold;
         this.maxClusters = maxClusters;
+        this.sequenceScorer = sequenceScorer;
     }
     
     /**
      * Clusters sequences using a greedy scheme. The results satisfy the complete-linkage
      * criterion.
      * @param sequences Sequences to cluster.
-     * @param sequenceScorer Sequence-sequence scorer
      * @return Resulting clustering. Orphan sequences are returned as single-member
      * clusters.
      * @throws InterruptedException
@@ -35,7 +36,7 @@ public class LimitedGreedySequenceClusterer implements SequenceClusterer {
      * @throws DataException 
      */
     @Override
-    public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer sequenceScorer) throws InterruptedException, ExecutionException, DataException{
+    public List<Cluster> cluster(List<UniqueSequence> sequences) throws InterruptedException, ExecutionException, DataException{
         ClusterScorer clusterScorer = new ClinkageClusterScorer(sequenceScorer, threshold);
         List<Cluster> clusters = firstPhase(sequences, maxClusters, clusterScorer);
         //now clusters (size > 1) are at the beginning of the list
