@@ -136,6 +136,15 @@ public class Hammock {
     }
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
+        
+        Alphabet sdm12 = AlphabetSdm12.getInstance();
+        List<UniqueSequence> seqs = new ArrayList<>();
+        seqs.add(new UniqueSequence("ADDGGGGGG"));
+        seqs.add(new UniqueSequence("ADDGWWW"));
+        SequenceScorer scorer = new KmerScorer(3, seqs, sdm12);
+        System.out.println(scorer.sequenceScore(new UniqueSequence("ADD"), new UniqueSequence("DDG")));
+        
+        
         try {
             parseArgs(args);
         } catch (CLIException e){
