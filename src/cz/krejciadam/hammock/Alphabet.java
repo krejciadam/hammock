@@ -2,10 +2,10 @@
  * An amino acid alphabet
  */
 package cz.krejciadam.hammock;
-
+ 
 import java.util.HashMap;
 import java.util.Map;
-
+ 
 /**
  *
  * @author Adam Krejci
@@ -15,8 +15,8 @@ public abstract class Alphabet {
     Map<Character, Integer> aaMap;
     int alphabetSize;
     
-    public int[] toSequence(String sequenceString){
-        int[] res = new int[sequenceString.length()];
+    public Integer[] toSequence(String sequenceString){
+        Integer[] res = new Integer[sequenceString.length()];
         for (int i = 0; i < sequenceString.length(); i++){
             res[i] = aaMap.get(sequenceString.charAt(i));
         }
