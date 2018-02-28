@@ -137,12 +137,67 @@ public class Hammock {
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         
-        Alphabet sdm12 = AlphabetSdm12.getInstance();
-        List<UniqueSequence> seqs = new ArrayList<>();
-        seqs.add(new UniqueSequence("ADDGWGGGGG"));
-        seqs.add(new UniqueSequence("ADDGWWW"));
-        SequenceScorer scorer = new KmerScorer(3, sdm12);
-        System.out.println(scorer.sequenceScore(seqs.get(0), seqs.get(1)));
+//        Alphabet sdm12 = AlphabetSdm12.getInstance();
+//        //List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromFasta("/home/akrejci/NetBeansProjects/Hammock/examples/MUSI/musi.fa");
+//        List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromFasta("/home/akrejci/NetBeansProjects/Hammock/examples/antibodies/antibodies.fa");
+//        GreedyKmerClusterer clusterer = new GreedyKmerClusterer(new KmerScorer(3, sdm12), 3, 30);
+//        List<Cluster> clust = clusterer.cluster(seqs);
+//        List<Cluster> realClusters = new ArrayList<>();
+//        List<UniqueSequence> sequences = new ArrayList<>();
+//        for (Cluster cl : clust){
+//            if (cl.getUniqueSize() > 1){
+//                realClusters.add(cl);
+//            } else{
+//                sequences.add(cl.getSequences().get(0));
+//            }
+//        }
+//        for (Cluster cl : realClusters){
+//            System.out.println(cl.getId() + "\t" + cl.getUniqueSize());
+//        }
+//        System.out.println("-------");
+//        List<Cluster> fin = clusterer.assignToClosestCluster(realClusters, sequences);
+//        for (Cluster cl : fin){
+//            System.out.println(cl.getId() + "\t" + cl.getUniqueSize());
+//        }
+//        
+//        labels = getSortedLabels(FileIOManager.getAllSequences(fin));
+//        threadPool = Executors.newFixedThreadPool(8);
+//        ShiftedScorer scorer = new ShiftedScorer(FileIOManager.loadScoringMatrix("/home/akrejci/NetBeansProjects/Hammock/matrices/blosum62.txt"), 0, 3);
+//        SequenceClusterer clusterer2 = new ClinkageSequenceClusterer(scorer, 20);
+//        
+//        List<Cluster> finalResult = new ArrayList<>();
+//        List<Cluster> toBuildAlns = new ArrayList<>();
+//        List<Cluster> sizeOne = new ArrayList<>();
+//        
+//        int id = 0;
+//        for (Cluster gg : fin){
+//            List<Cluster> clink = clusterer2.cluster(gg.getSequences());
+//            for (Cluster cl : clink){
+//                if (cl.getUniqueSize() > 1){
+//                    toBuildAlns.add(new Cluster(cl.getSequences(), id));
+//                    id++;
+//                } else{
+//                    sizeOne.add(new Cluster(cl.getSequences(), id));
+//                    id++;
+//                }
+//            }
+//        }
+//        ClustalRunner.mulitpleAlignment(toBuildAlns);
+//        for (Cluster cl : sizeOne){
+//            cl.setAsHasMSA();
+//        }
+//        finalResult.addAll(toBuildAlns);
+//        finalResult.addAll(sizeOne);
+//        System.out.println(finalResult.size());
+//        System.out.println(toBuildAlns.size());
+//        FileIOManager.saveClusterSequencesToCsv(finalResult, "/home/akrejci/Desktop/clusters.tsv", labels);
+        
+        
+//        List<UniqueSequence> seqs = new ArrayList<>();
+//        seqs.add(new UniqueSequence("ADDGWGGGGG"));
+//        seqs.add(new UniqueSequence("ADDGWWW"));
+//        SequenceScorer scorer = new KmerScorer(3, sdm12);
+//        System.out.println(scorer.sequenceScore(seqs.get(0), seqs.get(1)));
         
         
         try {
