@@ -88,6 +88,9 @@ public class Hammock {
     //clinkage
     private static int cacheSizeLimit = 1;
     
+    //initial extension
+    private static Double initialExtensionThreshold = null;
+    
     //hmm
     private static boolean unique = false;
     private static Integer sizeThreshold = null;
@@ -110,6 +113,7 @@ public class Hammock {
     public static Boolean innerGapsAllowed = null;
     public static boolean extensionIncreaseLength = false;
     public static Map<String, String> hhSuiteEnv = null;
+    
     //hmm - filtering
     public static boolean filterBeforeAssignment = false;
     public static int sequenceAddThreshold = 12;
@@ -201,6 +205,48 @@ public class Hammock {
         
         
         try {
+//            List<Cluster> clusters = FileIOManager.loadClustersFromCsv("/home/akrejci/NetBeansProjects/Hammock/dist/Hammock_result_1/initial_clusters_sequences.tsv", true);
+//            List<Cluster> coreClusters = new ArrayList<>();
+//            List<Cluster> databaseClusters = new ArrayList<>();
+//            Collections.sort(clusters, Collections.reverseOrder());
+//            List<UniqueSequence> seqs = new ArrayList<>();
+//            for (int i = 0; i < clusters.size(); i++){
+//                if (i < 25){
+//                    coreClusters.add(clusters.get(i));
+//                } else{
+//                    if (clusters.get(i).size() >= 3 && i < 75){
+//                        databaseClusters.add(clusters.get(i));
+//                    }
+//                    else{
+//                        seqs.addAll(clusters.get(i).getSequences());
+//                    }
+//                }
+//            }
+//            int size = 0;
+//            for (Cluster cl : coreClusters){
+//                size += cl.getUniqueSize();
+//            }
+//            System.out.println(size);
+//            System.out.println(coreClusters.size());
+//            threadPool = Executors.newFixedThreadPool(8);
+//            hhSuiteEnv = new HashMap<>();
+//            innerGapsAllowed = false;
+//            minConservedPositions = 3;
+//            maxAlnLength = 24;
+//            labels = getSortedLabels(coreClusters.get(0).getSequences());
+//            hhSuiteEnv.put("HHLIB", "/home/akrejci/NetBeansProjects/Hammock" + SEPARATOR_CHAR + "hhsuite-2.0.16" + SEPARATOR_CHAR + "lib" + SEPARATOR_CHAR + "hh" + SEPARATOR_CHAR);
+//            AssignmentResult res = IterativeHmmClusterer.initialClusterAssignment(coreClusters, databaseClusters, 12.0);
+//            threadPool.shutdown();
+//            seqs.addAll(res.getDatabaseSequences());
+//            System.out.println(res.getClusters().size());
+//            size = 0;
+//            for (Cluster cl : res.getClusters()){
+//                size += cl.getUniqueSize();
+//            }
+//            System.out.println(size);
+//            FileIOManager.saveClusterSequencesToCsv(res.getClusters(), "/home/akrejci/Desktop/clusters.tsv", labels);
+//            FileIOManager.saveUniqueSequencesToFasta(seqs, "/home/akrejci/Desktop/seqs.tsv");
+            
             parseArgs(args);
         } catch (CLIException e){
             errorLogger.logAndStderr("Error in command line arguments: " + e.getMessage());
@@ -612,9 +658,15 @@ public class Hammock {
         } else{
             Collections.sort(inClusters, Collections.reverseOrder(new ClusterSizeIdComparator()));
         }
-        toCluster.addAll(inClusters.subList(0, countThreshold));
+        
+        int stayClusters = Math.min(countThreshold * 4, inClusters.size());
+        
+        toCluster.addAll(inClusters.subList(0, stayClusters));
         toCluster = FileIOManager.loadClusterAlignmentsFromFile(toCluster, inputFileName);
-        other.addAll(inClusters.subList(countThreshold, inClusters.size()));
+        
+        if (stayClusters < inClusters.size()){
+            other.addAll(inClusters.subList(stayClusters, inClusters.size()));
+        }
         for (Cluster cl : other) {
             databaseSequences.addAll(cl.getSequences());
         }
@@ -623,10 +675,15 @@ public class Hammock {
         }
         if (overlapThresholdSequence == null) {
             overlapThresholdSequence = setOverlapThresholdSequence(inClusters);
-        }
+        }                
         if (mergeThresholdSequence == null) {
             mergeThresholdSequence = setHhMergeThresholdSequence(inClusters);
         }
+        
+        if (initialExtensionThreshold == null) {
+            initialExtensionThreshold = mergeThresholdSequence[0] * 1.1;
+            logger.logAndStderr("Initial extension threshold not set. Setting automatically on the basis of merge threshold sequence to: " + initialExtensionThreshold);
+        } 
 
         if ((overlapThresholdSequence.length != assignThresholdSequence.length)
                 || (mergeThresholdSequence.length != assignThresholdSequence.length)) {
@@ -678,6 +735,14 @@ public class Hammock {
         }
 
         logClusteringParams(logger);
+        
+        List<Cluster> toAdd = toCluster.subList(countThreshold, toCluster.size());
+        toCluster = toCluster.subList(0, countThreshold);
+        logger.logAndStderr("Initial cluster extension...");
+        AssignmentResult increasedClusters = IterativeHmmClusterer.initialClusterAssignment(toCluster, toAdd, initialExtensionThreshold);
+        toCluster = increasedClusters.getClusters();
+        databaseSequences.addAll(increasedClusters.getDatabaseSequences());
+        
 
         logger.logAndStderr("\nClustering in " + assignThresholdSequence.length + " rounds...");
         long time = System.currentTimeMillis();
@@ -1084,9 +1149,18 @@ public class Hammock {
                     continue;
                 }
             }
+            
             if (args[i].equals("-a") || args[i].equals("--part_threshold")) {
                 if (args.length > i + 1) {
                     partThreshold = Double.parseDouble(args[i + 1]);
+                    i++;
+                    continue;
+                }
+            }
+            
+            if (args[i].equals("-E") || args[i].equals("--initial_extension_threshold")) {
+                if (args.length > i + 1) {
+                    initialExtensionThreshold = Double.parseDouble(args[i + 1]);
                     i++;
                     continue;
                 }
@@ -1523,7 +1597,7 @@ public class Hammock {
                 result[i] = (double) Math.round(result[i] * 100) / 100;
             }
         } else {
-            logger.logAndStderr("Overlap threshold not set. Setting automatically based on assign threshold sequence to: ");
+            logger.logAndStderr("Overlap threshold not set. Setting automatically on the basis of assign threshold sequence to: ");
             result = new double[assignThresholdSequence.length];
             for (int i = 0; i < assignThresholdSequence.length; i++) {
                 result[i] = assignThresholdSequence[i] * 0.75;
@@ -1543,7 +1617,7 @@ public class Hammock {
     private static double[] setHhMergeThresholdSequence(Collection<Cluster> clusters) {
         double[] result;
         if (assignThresholdSequence.length == 3) {
-            logger.logAndStderr("Merge threshold not set. Setting automatically based on average sequence length to: ");
+            logger.logAndStderr("Merge threshold not set. Setting automatically on the basis of average sequence length to: ");
             double meanLength = getClusterMeanSequenceLength(clusters);
             if (relativeHHScore) {
                 result = new double[]{meanLength * 0.125, meanLength * 0.115, meanLength * 0.110};
@@ -1819,7 +1893,7 @@ public class Hammock {
 }
 
 /**
- * Compares clusters based on size. If sizes are equal, compares based on id.
+ * Compares clusters on the basis of size. If sizes are equal, compares on the basis of id.
  *
  */
 class ClusterSizeIdComparator implements Comparator<Cluster> {
@@ -1835,7 +1909,7 @@ class ClusterSizeIdComparator implements Comparator<Cluster> {
 }
 
 /**
- * Compares clusters based on unique size. If sizes are equal, compares based on id.
+ * Compares clusters on the basis of unique size. If sizes are equal, compares on the basis of id.
  *
  */
 class ClusterUniqueSizeIdComparator implements Comparator<Cluster> {

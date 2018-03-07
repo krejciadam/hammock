@@ -113,6 +113,14 @@ public class HHsuiteRunner {
         }
         return result;
     }
+    
+    public static HHalignHit alignClusters(Cluster alignedCluster, Cluster searchedCluster) throws Exception{
+        List<Cluster> tempList = new ArrayList<>();
+        tempList.add(searchedCluster);
+        Callable<List<HHalignHit>> callable = new SingleThreadHHsearchRunner(alignedCluster, tempList, "" + alignedCluster.getId() + "_" + 0);
+        List<HHalignHit> resList = callable.call();
+        return(resList.get(0));
+    }
 
     /**
      * Performs all vs. all comparison of clusters using hhserach. Returns all
@@ -160,7 +168,7 @@ public class HHsuiteRunner {
         }
         return result;
     }
-
+    
     /**
      * Merges two clusters contained in a HHalignHit object and returns resulting
      * cluster having a MSA constructed. Method uses alignment supported by
