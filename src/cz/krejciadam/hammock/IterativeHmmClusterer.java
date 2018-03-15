@@ -28,6 +28,21 @@ import java.util.concurrent.Executors;
  */
 public class IterativeHmmClusterer {
 
+    /**
+     * Utilizes hmm-hmm alignment to merge clusters from databaseClusters into
+     * coreClusters in a non-iterative fashion. Each databaseCluster is merged 
+     * into the most similar coreCluster, if the similarity score is above 
+     * scoreTheshold. When the 2nd or later databaseCluster is to be merged 
+     * with the same coreCluster, the similarity score is recalculated to check 
+     * whether it still satisfies scoreThreshold, because databaseCluster has
+     * been changed by previous merging.
+     * 
+     * @param coreClusters Clusters to be extended
+     * @param databaseClusters Clusters to be merged into coreClusters
+     * @param scoreThreshold min. score needed for 2 clusters to be merged
+     * @return
+     * @throws Exception 
+     */
     public static AssignmentResult initialClusterAssignment(
             Collection<Cluster> coreClusters,
             Collection<Cluster> databaseClusters,
