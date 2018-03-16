@@ -24,20 +24,23 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
     private final int sizeLimit; //only put clusters of this size and larger into cache.
                                 //(only applies for CachedCLScorer)
     private final int threshold;
+    private final SequenceScorer sequenceScorer;
 
-    public ClinkageSequenceClusterer(int threshold) {
+    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold) {
+        this.sequenceScorer = sequenceScorer;
         this.threshold = threshold;
         this.sizeLimit = 1;
     }
     
-    public ClinkageSequenceClusterer(int threshold, int sizeLimit) {
+    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold, int sizeLimit) {
+        this.sequenceScorer = sequenceScorer;
         this.threshold = threshold;
         this.sizeLimit = sizeLimit;
     }
      
     
     @Override
-    public List<Cluster> cluster(List<UniqueSequence> sequences, AligningSequenceScorer sequenceScorer) throws InterruptedException, ExecutionException {
+    public List<Cluster> cluster(List<UniqueSequence> sequences) throws InterruptedException, ExecutionException {
         CachedClusterScorer clusterScorer = new CachedClusterScorer(new ClinkageClusterScorer(sequenceScorer, threshold), sizeLimit);
         ClusterStack<Cluster> stack = new ClusterStack<>();
         Set<Cluster> readyClusters = new HashSet<>();  //a list for clusters whose nearest neighbor is past the threshold
