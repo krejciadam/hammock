@@ -306,8 +306,8 @@ When the execution finishes, a folder called \texttt{Hammock\_result\_1} appers 
 $ cd ../../dist/Hammock_result_1
 $ column -s "\t" -t final_clusters.tsv
 cluster_id  main_sequence  sum   no_label
-4330        AAMFLRPLPAVQ   1670  1670
-4334        AALPKLPFRNMT   311   311
+4041        AAMFLRPLPAVQ   1749  1749
+4334        AALPKLPFRNMT   431   431
 4407        GSWAVDISNVED   12    12
 \end{verbatim}
 
@@ -334,7 +334,7 @@ The three .png files in \texttt{logos\_final} folder show strong motifs conserve
 
 In \texttt{alignments\_other} folder, there are alignment files from the entire iterative cluster extension and merging process.
 
-There are 464 sequences in \texttt{final\_remaining\_sequences.fa} that were not assigned to any cluster (The information on this count is also stored in \texttt{run.log}). We'll try to change parameters, so that more sequences are assigned to clusters.
+There are 265 sequences in \texttt{final\_remaining\_sequences.fa} that were not assigned to any cluster (The information on this count is also stored in \texttt{run.log}). We'll try to change parameters, so that more sequences are assigned to clusters.
 
 In \texttt{run.log}, we can see that 3 rounds of cluster extension and merging were performed and that assign threshold values were absolute and set to: \texttt{11.4,9.0,6.6}. We'll run Hammock again with lower threshold values of \texttt{11.4, 8.5, 6.0}. As greedy clustering results are ok, we'll re-use them and run Hammock in \texttt{cluster} mode\footnote{In this case, greedy clustering takes so short that it is not actually necessary, but for large datasets and intensive parameter testing, this can save significant amount of time.}. This time, we'll also use 8 computational threads. The resulting command look like this: 
 
@@ -346,7 +346,7 @@ java -jar dist/Hammock.jar cluster \
 -t 8
 \end{verbatim}
 
-We can see that with these parameters, there are only 378 sequences remaining.
+We can see that with these parameters, there are only 218 sequences remaining.
 
 
 \section{Galaxy implementation}
