@@ -36,7 +36,7 @@ public class Hammock {
     private static final String PARENT_DIR = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
-    private static final String VERSION = "1.1.4";
+    private static final String VERSION = "1.2.0";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
@@ -141,47 +141,6 @@ public class Hammock {
 
     public static void main(String[] args) throws IOException, HammockException, InterruptedException, ExecutionException, Exception {
         try {
-//            List<Cluster> clusters = FileIOManager.loadClustersFromCsv("/home/akrejci/NetBeansProjects/Hammock/dist/Hammock_result_1/initial_clusters_sequences.tsv", true);
-//            List<Cluster> coreClusters = new ArrayList<>();
-//            List<Cluster> databaseClusters = new ArrayList<>();
-//            Collections.sort(clusters, Collections.reverseOrder());
-//            List<UniqueSequence> seqs = new ArrayList<>();
-//            for (int i = 0; i < clusters.size(); i++){
-//                if (i < 25){
-//                    coreClusters.add(clusters.get(i));
-//                } else{
-//                    if (clusters.get(i).size() >= 3 && i < 75){
-//                        databaseClusters.add(clusters.get(i));
-//                    }
-//                    else{
-//                        seqs.addAll(clusters.get(i).getSequences());
-//                    }
-//                }
-//            }
-//            int size = 0;
-//            for (Cluster cl : coreClusters){
-//                size += cl.getUniqueSize();
-//            }
-//            System.out.println(size);
-//            System.out.println(coreClusters.size());
-//            threadPool = Executors.newFixedThreadPool(8);
-//            hhSuiteEnv = new HashMap<>();
-//            innerGapsAllowed = false;
-//            minConservedPositions = 3;
-//            maxAlnLength = 24;
-//            labels = getSortedLabels(coreClusters.get(0).getSequences());
-//            hhSuiteEnv.put("HHLIB", "/home/akrejci/NetBeansProjects/Hammock" + SEPARATOR_CHAR + "hhsuite-2.0.16" + SEPARATOR_CHAR + "lib" + SEPARATOR_CHAR + "hh" + SEPARATOR_CHAR);
-//            AssignmentResult res = IterativeHmmClusterer.initialClusterAssignment(coreClusters, databaseClusters, 12.0);
-//            threadPool.shutdown();
-//            seqs.addAll(res.getDatabaseSequences());
-//            System.out.println(res.getClusters().size());
-//            size = 0;
-//            for (Cluster cl : res.getClusters()){
-//                size += cl.getUniqueSize();
-//            }
-//            System.out.println(size);
-//            FileIOManager.saveClusterSequencesToCsv(res.getClusters(), "/home/akrejci/Desktop/clusters.tsv", labels);
-//            FileIOManager.saveUniqueSequencesToFasta(seqs, "/home/akrejci/Desktop/seqs.tsv");
             
             parseArgs(args);
         } catch (CLIException e){
@@ -363,6 +322,7 @@ public class Hammock {
         //System.err.println("-a, --part_threshold <float [0, 1]>\n\tThe proportion of clusters to be used as cores\n");
         //System.err.println("-s, --size_threshold <int\n\tMinimal size (in unique sequences) of a cluster to be used a core\n");
         System.err.println("-c, --count_threshold <int>\n\tThis many largest (in terms of total or unique size) initial clusters will be used as cluster cores. \n");
+        System.err.println("-E, --initial_extension_threshold <float>\n\tA score threshold used in the initial cluster extension step \n");
         System.err.println("-n, --assign_thresholds <float,float,float...>\n\tA sequence of threshold values for sequence to cluster assignment\n");
         System.err.println("-v, --overlap thresholds <float,float,float...\n\tA sequence of threshold values of min. cluster overlap\n");
         System.err.println("-r, --merge_thresholds <float,float,float...>\n\tA sequence of threshold values for cluster-cluster comparisons\n");
