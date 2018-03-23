@@ -152,9 +152,9 @@ public class Hammock {
         //List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromFasta("/home/akrejci/NetBeansProjects/Hammock/examples/MUSI/musi.fa");
         List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromFasta("/home/akrejci/NetBeansProjects/Hammock/examples/antibodies/antibodies.fa");
         //List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromTable("/media/akrejci/Drive_2/Archive/PhageDisplay/2017_07_27_antibodies/NNK_1x_DNA/DO1-ascit_NNK_DNA_1x_unique.tsv");
-        GreedyKmerClusterer clusterer = new GreedyKmerClusterer(new KmerScorer(3, sdm12), 2, 15);
+        SequenceClusterer kmerClusterer = new GreedyKmerClusterer(new KmerScorer(3, sdm12), 2, 15);
         seqs = UniqueSequence.sortSequences(seqs, "input");
-        List<Cluster> clust = clusterer.cluster2(seqs);
+        List<Cluster> clust = kmerClusterer.cluster(seqs);
         List<Cluster> realClusters = new ArrayList<>();
         List<UniqueSequence> sequences = new ArrayList<>();
         for (Cluster cl : clust){
