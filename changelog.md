@@ -1,4 +1,12 @@
 # Hammock changelog
+
+## Version 1.2.0
+### 2018-03-15
+- Hammock now performs an additional step called "Initial cluster extension", which comes between initial (complete linkage or greedy) clustering step and the first round of iterative cluster extension/merging. Basically, Hammock utilizes more information from the initial clustering, which typically leads to better results, sometimes even slightly lower run times. Refer to the manual for more details. 
+- A new parameter `-E, --initial_extension_threshold` was introduced, which allowes the user to infuluence the initial extension step. By default, the value of this parameter is 1.1 times the first merge threshold. 
+- Cleanup
+
+
 ## Version 1.1.4
 ### 2018-02-01
 - If the `HHLIB` environmental variable is not set, Hammock will set it manually (expecting standard Hammock folder structure)

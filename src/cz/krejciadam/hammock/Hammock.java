@@ -6,6 +6,7 @@ package cz.krejciadam.hammock;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -36,7 +37,7 @@ public class Hammock {
     private static final String PARENT_DIR = (new File(Hammock.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getParentFile().getParentFile().getPath());
 
     //common
-    private static final String VERSION = "1.1.4";
+    private static final String VERSION = "1.2.0";
     private static List<UniqueSequence> initialSequences = null;
     private static String inputFileName = null;
     public static String workingDirectory = null;
@@ -50,6 +51,15 @@ public class Hammock {
     public static ExecutorService threadPool = null;
     public static boolean inGalaxy = false;
     public static Random random = null;
+    
+    //Dummy PrintStream
+    private static final PrintStream dummyStream = new PrintStream(new OutputStream(){
+        @Override
+        public void write(int b) {
+            // NO-OP
+        }
+    });
+      
 
     //common - preset
     private static String initialClustersSequencesCsv;
@@ -406,6 +416,7 @@ public class Hammock {
         //System.err.println("-a, --part_threshold <float [0, 1]>\n\tThe proportion of clusters to be used as cores\n");
         //System.err.println("-s, --size_threshold <int\n\tMinimal size (in unique sequences) of a cluster to be used a core\n");
         System.err.println("-c, --count_threshold <int>\n\tThis many largest (in terms of total or unique size) initial clusters will be used as cluster cores. \n");
+        System.err.println("-E, --initial_extension_threshold <float>\n\tA score threshold used in the initial cluster extension step \n");
         System.err.println("-n, --assign_thresholds <float,float,float...>\n\tA sequence of threshold values for sequence to cluster assignment\n");
         System.err.println("-v, --overlap thresholds <float,float,float...\n\tA sequence of threshold values of min. cluster overlap\n");
         System.err.println("-r, --merge_thresholds <float,float,float...>\n\tA sequence of threshold values for cluster-cluster comparisons\n");
@@ -441,6 +452,8 @@ public class Hammock {
             finalClustersCsv = galaxyFinalClustersCsv;
             finalSequenceCsv = galaxyFinalSequenceCsv;
             finalSequenceOrderedCsv = galaxyFinalSequenceCsvOrdered;
+            System.setOut(dummyStream);
+            System.setErr(dummyStream);
 
         }
         List<UniqueSequence> sequences = loadInputSequences(inputFileName, inputType, logger, labels);

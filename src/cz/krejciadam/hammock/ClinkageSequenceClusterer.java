@@ -21,9 +21,8 @@ import java.util.concurrent.ExecutorService;
  */
 public class ClinkageSequenceClusterer implements SequenceClusterer {
 
-
     private final int sizeLimit; //only put clusters of this size and larger into cache.
-                                //(only applies for CachedCLScorer)
+    //(only applies for CachedCLScorer)
     private final int threshold;
     private final SequenceScorer sequenceScorer;
     private CompletionService<NearestCluster> resultPool;
@@ -38,8 +37,7 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
         this.sizeLimit = sizeLimit;
         resultPool = new ExecutorCompletionService<>(threadPool);
     }
-     
-    
+
     @Override
     public List<Cluster> cluster(List<UniqueSequence> sequences) throws InterruptedException, ExecutionException {
         CachedClusterScorer clusterScorer = new CachedClusterScorer(new ClinkageClusterScorer(sequenceScorer, threshold), sizeLimit);
@@ -48,40 +46,37 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
         int sumCommodity = 0; //Sum of price of all the remaining clusters    
         Set<Cluster> activeClusters = new HashSet<>();
         int currentId = 1;
-        for (UniqueSequence seq : sequences){
+        for (UniqueSequence seq : sequences) {
             Set<UniqueSequence> seqs = new HashSet<>();
             seqs.add(seq);
             activeClusters.add(new Cluster(seqs, currentId));
-            currentId ++;
+            currentId++;
         }
-        
+
         for (Cluster cluster : activeClusters) {
             sumCommodity += cluster.getUniqueSize();
         }
         
         while (activeClusters.size() > 1) {
-            if (!Hammock.inGalaxy){
-                System.err.print("\rSequences remaining to process: "
-                        + activeClusters.size() + ", clusters ready: "
-                        + readyClusters.size() + " ");
-            }
+            System.err.print("\rSequences remaining to process: "
+                    + activeClusters.size() + ", clusters ready: "
+                    + readyClusters.size() + " ");
 
             Cluster randomCluster = activeClusters.iterator().next();
             stack.push(randomCluster); // choose arbitrary cluster
             while (!stack.isEmpty()) {
                 Cluster top = stack.peek();
-                
+
                 /*Nearest neighbor finding:*/
-                
                 NearestCluster foundNearestCluster = findNearestClusterParallel(activeClusters, top, clusterScorer, sumCommodity, resultPool);
                 int maxScore = Integer.MIN_VALUE;
                 Cluster nearestCluster = null;
-                if (foundNearestCluster != null){
+                if (foundNearestCluster != null) {
                     nearestCluster = foundNearestCluster.getCluster();
                     maxScore = foundNearestCluster.getScore();
                 }
-                
-                 /*If the score is too low, remove top and start over (this can only happen when there is only one cluster in the stack)*/
+
+                /*If the score is too low, remove top and start over (this can only happen when there is only one cluster in the stack)*/
                 if (maxScore < threshold) {
                     stack.pop();
                     readyClusters.add(top);
@@ -89,21 +84,21 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                     sumCommodity -= top.getUniqueSize();
                     continue;
                 }
-                
+
                 /*The nearest cluster to "top" is the 2nd in the stack
                  * Remove both from the stack, merge them and put the new into active clusters*/
-                if ((stack.size() > 1) && stack.peekSecond().equals(nearestCluster)) { 
+                if ((stack.size() > 1) && stack.peekSecond().equals(nearestCluster)) {
                     currentId++;
                     stack.pop();
                     stack.pop();
                     activeClusters.remove(top);
                     activeClusters.remove(nearestCluster);
                     clusterScorer.join(top, nearestCluster, currentId);
-                    sumCommodity -= (top.getUniqueSize() + nearestCluster.getUniqueSize()); 
-                    
+                    sumCommodity -= (top.getUniqueSize() + nearestCluster.getUniqueSize());
+
                     List<UniqueSequence> mergedSeqs = top.getSequences();
                     mergedSeqs.addAll(nearestCluster.getSequences());
-                    
+
                     Cluster newTop = new Cluster(mergedSeqs, currentId);
 
                     activeClusters.add(newTop);
@@ -121,9 +116,10 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
         toReturn.addAll(readyClusters);
         return new ArrayList<>(toReturn);
     }
-    
+
     /**
-     * Finds the most similar cluster in a collection. 
+     * Finds the most similar cluster in a collection.
+     *
      * @param inputClusters the collection to be searched
      * @param comparedCluster the cluster to find the nearest neighbor of
      * @param scorer Scoring scheme to use for cluster-cluster comparison
@@ -131,30 +127,29 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
      * @param resultPool To be used for parallelization
      * @return The best scoring cluster and comparison information.
      * @throws InterruptedException
-     * @throws ExecutionException 
+     * @throws ExecutionException
      */
-    public static NearestCluster findNearestClusterParallel(Collection<Cluster> inputClusters, Cluster comparedCluster, ClusterScorer scorer, int sumCommodity, CompletionService<NearestCluster> resultPool) throws InterruptedException, ExecutionException{
-        if(inputClusters.isEmpty()){
-            return(new NearestCluster(null, Integer.MIN_VALUE));
+    public static NearestCluster findNearestClusterParallel(Collection<Cluster> inputClusters, Cluster comparedCluster, ClusterScorer scorer, int sumCommodity, CompletionService<NearestCluster> resultPool) throws InterruptedException, ExecutionException {
+        if (inputClusters.isEmpty()) {
+            return (new NearestCluster(null, Integer.MIN_VALUE));
         }
         int currentMaxNumberOfThreads = ClinkageSequenceClusterer.setNumberOfParts(inputClusters);
         List<Set<Cluster>> activeClustersParts = ClinkageSequenceClusterer.activeClustersParts(inputClusters, sumCommodity, currentMaxNumberOfThreads);
         /*Vlastni hledani nejblizsiho clusteru*/
         for (int i = 0; i < activeClustersParts.size(); i++) {
             resultPool.submit(
-                new NearestClusterRunner(
-                activeClustersParts.get(i),
-                comparedCluster, scorer));
-            }
-                
+                    new NearestClusterRunner(
+                            activeClustersParts.get(i),
+                            comparedCluster, scorer));
+        }
+
         int maxScore = (Integer.MIN_VALUE + 42); //If NearestCluster from the next part is NULL, it has MIN_VALUE. This way, we find out that these cases are skipped right away.
         NearestCluster nearestCluster = null;
-                
-            /*Results from the threads that already finished*/
+
+        /*Results from the threads that already finished*/
         for (Set<Cluster> activeClustersPart : activeClustersParts) {
-            NearestCluster currentCluster = resultPool.take().get();     
-            
-            
+            NearestCluster currentCluster = resultPool.take().get();
+
             if (currentCluster.getScore() < maxScore) {
                 continue;
             }
@@ -165,32 +160,31 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
             } else { //currentScore == maxScore   
                 if ((currentCluster.getCluster().size() > nearestCluster.getCluster().size())) { //when currentCluster is null (exceptional situation. Onlu the top was in the thread), we can skip
                     nearestCluster = currentCluster;
-                } else{
-                    if ((currentCluster.getCluster().size() == nearestCluster.getCluster().size()) && (currentCluster.getCluster().getId() < nearestCluster.getCluster().getId())){ //equal size
+                } else {
+                    if ((currentCluster.getCluster().size() == nearestCluster.getCluster().size()) && (currentCluster.getCluster().getId() < nearestCluster.getCluster().getId())) { //equal size
                         nearestCluster = currentCluster;
                     }
                 }
             }
         }
-        return(nearestCluster);
+        return (nearestCluster);
     }
-    
-    
-     /**
+
+    /**
      * Finds how many parts to divide the work into
      *
-     * @param activeClusters 
+     * @param activeClusters
      * @return
      */
     private static int setNumberOfParts(Collection<Cluster> activeClusters) {
         int currentMaxNumberOfParts = Hammock.nThreads * 4;
-        if (activeClusters.size() < Hammock.nThreads * 4 + 1) {      
+        if (activeClusters.size() < Hammock.nThreads * 4 + 1) {
             currentMaxNumberOfParts = Math.max(activeClusters.size() - 1, 1);
         }
         return currentMaxNumberOfParts;
     }
-    
-     /**
+
+    /**
      * Divide the work between threads. Ideally evenly.
      *
      * @param activeClusters A collection to divide in the parts
@@ -216,17 +210,18 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
             }
         }
         if (currentSet.size() > 0) {
-            result.add(currentSet); 
+            result.add(currentSet);
         }
         return result;
     }
-    
-    
+
 }
 
 class ClusterStack<E> extends Stack<E> {
+
     /**
      * Returns the second element in the stack
+     *
      * @return The second stack element
      */
     public E peekSecond() {
@@ -234,7 +229,6 @@ class ClusterStack<E> extends Stack<E> {
         return element;
     }
 }
-
 
 /**
  * For parallel search for nearest clusters
@@ -254,7 +248,7 @@ class NearestClusterRunner implements Callable<NearestCluster> {
     }
 
     @Override
-    public NearestCluster call() throws DataException{
+    public NearestCluster call() throws DataException {
         int maxScore = Integer.MIN_VALUE;
         int score;
         Cluster nearestCluster = null;
@@ -272,17 +266,16 @@ class NearestClusterRunner implements Callable<NearestCluster> {
             we need a DETERMINISTIC decision which is the most similar. We use size
             and id. 
              */ else {
-                if (i != comparedCluster){
-                    if (i.size() > nearestCluster.size()){
-                        nearestCluster = i;                        
-                    } else{
-                        if (i.size() < nearestCluster.size()){
-                           //nothing, no change 
-                        }
-                        else { //size is the same as well. Decide using id.
+                if (i != comparedCluster) {
+                    if (i.size() > nearestCluster.size()) {
+                        nearestCluster = i;
+                    } else {
+                        if (i.size() < nearestCluster.size()) {
+                            //nothing, no change 
+                        } else { //size is the same as well. Decide using id.
                             if ((i.getId() < nearestCluster.getId())) {
-                            nearestCluster = i;
-                        }    
+                                nearestCluster = i;
+                            }
                         }
                     }
                 }
