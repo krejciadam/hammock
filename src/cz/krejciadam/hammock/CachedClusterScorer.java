@@ -22,8 +22,8 @@ import java.util.Set;
  */
 public class CachedClusterScorer implements ClusterScorer {
     
-    private static Map<Integer, Integer> indexMap; //Index. The id of each cluster in the matrix gets a matrix x-coordinate.
-    private static DynamicMatrix matrix;
+    private final Map<Integer, Integer> indexMap; //Index. The id of each cluster in the matrix gets a matrix x-coordinate.
+    private final DynamicMatrix matrix;
     private final int sizeLimit;
     private final ClusterScorer defaultClusterScorer;
     
@@ -127,8 +127,8 @@ public class CachedClusterScorer implements ClusterScorer {
 
 class DynamicMatrix {
 
-    private static List<List<Integer>> matrix;
-    private static Set<Integer> dirty;
+    private final List<List<Integer>> matrix;
+    private final Set<Integer> dirty;
 
     public DynamicMatrix() {
         matrix = Collections.synchronizedList(new ArrayList<List<Integer>>());

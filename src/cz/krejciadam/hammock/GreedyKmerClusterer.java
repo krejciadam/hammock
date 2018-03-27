@@ -5,13 +5,10 @@ package cz.krejciadam.hammock;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 /**
  *
@@ -23,10 +20,8 @@ public class GreedyKmerClusterer implements SequenceClusterer {
     int sharedKmers;
     int coreClustersCount;
 
-    public GreedyKmerClusterer(KmerScorer scorer, int sharedKmers, int coreClustersCount) {
+    public GreedyKmerClusterer(KmerScorer scorer) {
         this.scorer = scorer;
-        this.sharedKmers = sharedKmers;
-        this.coreClustersCount = coreClustersCount;
     }
     
     @Override

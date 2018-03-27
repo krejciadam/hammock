@@ -13,6 +13,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
 
 /**
  *
@@ -25,17 +26,17 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
                                 //(only applies for CachedCLScorer)
     private final int threshold;
     private final SequenceScorer sequenceScorer;
+    private CompletionService<NearestCluster> resultPool;
 
-    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold) {
-        this.sequenceScorer = sequenceScorer;
-        this.threshold = threshold;
-        this.sizeLimit = 1;
+    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold, ExecutorService threadPool) {
+        this(sequenceScorer, threshold, 1, threadPool);
     }
     
-    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold, int sizeLimit) {
+    public ClinkageSequenceClusterer(SequenceScorer sequenceScorer, int threshold, int sizeLimit, ExecutorService threadPool) {
         this.sequenceScorer = sequenceScorer;
         this.threshold = threshold;
         this.sizeLimit = sizeLimit;
+        resultPool = new ExecutorCompletionService<>(threadPool);
     }
      
     
@@ -57,8 +58,6 @@ public class ClinkageSequenceClusterer implements SequenceClusterer {
         for (Cluster cluster : activeClusters) {
             sumCommodity += cluster.getUniqueSize();
         }
-        
-        CompletionService<NearestCluster> resultPool = new ExecutorCompletionService<>(Hammock.threadPool);
         
         while (activeClusters.size() > 1) {
             if (!Hammock.inGalaxy){
