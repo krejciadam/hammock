@@ -34,15 +34,22 @@ public class inGroupClusterer {
     
     public List<Cluster> clusterWithinGroups(Collection<Cluster> groups) throws InterruptedException, ExecutionException{
         
-        
+        System.setErr(Hammock.dummyStream);
+        List<ExecutorService> threadPools = new ArrayList<>(); //we must shut these down manually
         for (Cluster group : groups){
+            ExecutorService threadPool = Executors.newSingleThreadExecutor();
+            threadPools.add(threadPool);
             SequenceClusterer clinkageClusterer = new ClinkageSequenceClusterer(
-                scorer, threshold, Integer.MAX_VALUE, Executors.newSingleThreadExecutor()); //the max value means no caching will be performed
+                scorer, threshold, Integer.MAX_VALUE, threadPool); //the max value means no caching will be performed
             resultPool.submit(new ClusteringRunner(clinkageClusterer, group.getSequences()));
         }
+        System.setErr(System.err);
         List<Cluster> result = new ArrayList<>();
         for (Cluster group : groups){
             result.addAll(resultPool.take().get());
+        }
+        for (ExecutorService threadPool : threadPools){
+            threadPool.shutdown();
         }
         return(result);
         

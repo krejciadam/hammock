@@ -53,7 +53,7 @@ public class Hammock {
     public static Random random = null;
     
     //Dummy PrintStream
-    private static final PrintStream dummyStream = new PrintStream(new OutputStream(){
+    public static final PrintStream dummyStream = new PrintStream(new OutputStream(){
         @Override
         public void write(int b) {
             // NO-OP

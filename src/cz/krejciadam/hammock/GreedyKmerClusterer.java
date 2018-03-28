@@ -51,9 +51,6 @@ public class GreedyKmerClusterer implements SequenceClusterer {
             id++;
         }
         List<Cluster> result = assignToClosestClusterIterative(cores, remainingSequences);
-        for (Cluster cl : result){
-            System.out.println(cl.getUniqueSize());
-        }
         return(result);
     }
 
