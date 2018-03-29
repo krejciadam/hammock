@@ -157,18 +157,24 @@ public class Hammock {
         minIc = 1.4;
         
         nThreads = 8;
+        threadPool = Executors.newFixedThreadPool(8);
+        //List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromTable("/media/akrejci/Drive_2/Archive/PhageDisplay/2017_07_27_antibodies/NNK_1x_DNA/DO1-ascit_NNK_DNA_1x_unique.tsv");
         List<UniqueSequence> seqs = FileIOManager.loadUniqueSequencesFromFasta("/home/akrejci/NetBeansProjects/Hammock/examples/antibodies/antibodies.fa");
         seqs = UniqueSequence.sortSequences(seqs, "input");
         Alphabet sdm12 = AlphabetSdm12.getInstance();
-        SequenceClusterer kmerClusterer = new GreedyKmerClusterer(new KmerScorer(3, sdm12));
+        SequenceClusterer kmerClusterer = new GreedyKmerClusterer(new KmerScorer(3, sdm12), threadPool);
+        long time = System.currentTimeMillis();
         List<Cluster> groups = kmerClusterer.cluster(seqs); 
+        System.out.println("Time: " + (System.currentTimeMillis() - time));
+        for (Cluster group : groups){
+            System.out.println(group.getUniqueSize());
+        }
 
-        threadPool = Executors.newFixedThreadPool(8);
         ShiftedScorer scorer = new ShiftedScorer(FileIOManager.loadScoringMatrix("/home/akrejci/NetBeansProjects/Hammock/matrices/blosum62.txt"), 0, 3);
         Collections.sort(groups, Collections.reverseOrder(new ClusterUniqueSizeIdComparator()));
         inGroupClusterer groupClusterer = new inGroupClusterer(sequenceClusteringThreshold, scorer, threadPool);
         labels = Hammock.getSortedLabels(FileIOManager.getAllSequences(groups));
-        long time = System.currentTimeMillis();
+        time = System.currentTimeMillis();
         List<Cluster> finalClusters = groupClusterer.clusterWithinGroups(groups);
         System.out.println("Time: " + (System.currentTimeMillis() - time));
         System.out.println(finalClusters.size());
