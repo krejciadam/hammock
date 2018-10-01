@@ -4,10 +4,6 @@ Hammock is a software tool to cluster peptide sequences on the basis of shared s
 ### Runnable version, manual and more info at: 
 <https://github.com/krejciadam/hammock/releases>
 
-or
-
-<http://www.recamo.cz/en/software/hammock-cluster-peptides/>
-
 ### Galaxy version at: 
 <https://toolshed.g2.bx.psu.edu/view/hammock/hammock>
 
