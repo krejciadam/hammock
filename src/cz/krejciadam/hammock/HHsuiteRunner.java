@@ -227,6 +227,8 @@ public class HHsuiteRunner {
         int startingLetter2 = Integer.parseInt(splitLine2[2]);
         String alignmentLine1 = splitLine1[3];
         String alignmentLine2 = splitLine2[3];
+        int endingLetter1 = Integer.parseInt(splitLine1[4]);
+        int endingLetter2 = Integer.parseInt(splitLine2[4]);
 
         List<Integer> newGaps1 = new ArrayList<>();
         List<Integer> newGaps2 = new ArrayList<>();
@@ -238,6 +240,9 @@ public class HHsuiteRunner {
                 lettersCounted1++;
             }
             position1++;
+            if (lettersCounted1 == endingLetter1){ // avoids null pointer exception when resultLine is all gaps
+                break;
+            }
         }
 
         int lettersCounted2 = 0;
@@ -247,6 +252,9 @@ public class HHsuiteRunner {
                 lettersCounted2++;
             }
             position2++;
+            if (lettersCounted2 == endingLetter2){ // avoids null pointer exception when resultLine is all gaps
+                break;
+            }
         }
 
         if (position1 != position2) { //need to add gaps to beginining
